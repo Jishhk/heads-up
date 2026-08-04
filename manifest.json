@@ -1,0 +1,9 @@
+{
+  "name": "Heads Up",
+  "short_name": "Heads Up",
+  "start_url": "./index.html",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#0B0D12",
+  "theme_color": "#0B0D12"
+}
