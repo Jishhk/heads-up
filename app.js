@@ -1,11 +1,14 @@
 (() => {
+  const APP_VERSION = 'v1';
   const ROUND_SECONDS = 60;
-  const TILT_DOWN_THRESHOLD = 68;    // beta below this = pass (was 50 — tightened for sensitivity)
-  const TILT_UP_THRESHOLD = 112;     // beta above this = correct (was 130 — tightened for sensitivity)
-  const NEUTRAL_LOW = 80;            // must return inside [NEUTRAL_LOW, NEUTRAL_HIGH]
-  const NEUTRAL_HIGH = 100;          // before another trigger can fire
+  const TILT_DOWN_THRESHOLD = 60;    // beta below this = pass
+  const TILT_UP_THRESHOLD = 120;     // beta above this = correct
+  const NEUTRAL_LOW = 75;            // must return inside [NEUTRAL_LOW, NEUTRAL_HIGH]
+  const NEUTRAL_HIGH = 105;          // before another trigger can fire
   const SESSION_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours
   const SESSION_KEY = 'headsup_session_v1';
+
+  document.getElementById('version-tag').textContent = 'Heads Up · ' + APP_VERSION;
 
   const screens = {};
   document.querySelectorAll('.screen').forEach(el => screens[el.id] = el);
@@ -13,6 +16,9 @@
   function showScreen(id) {
     Object.values(screens).forEach(s => s.classList.remove('active'));
     screens[id].classList.add('active');
+    if (id === 'screen-home' && typeof renderCategoryGrid === 'function') {
+      renderCategoryGrid();
+    }
   }
 
   // ---------- STATE ----------
@@ -43,7 +49,7 @@
         }
       }
     } catch (e) { /* localStorage unavailable — fall through to a fresh session */ }
-    return { expiresAt: Date.now() + SESSION_TTL_MS, seen: {} };
+    return { expiresAt: Date.now() + SESSION_TTL_MS, seen: {}, correctCounts: {} };
   }
 
   function saveSession() {
@@ -62,6 +68,17 @@
       sessionData.seen[categoryId].push(word);
       saveSession();
     }
+  }
+
+  function getCorrectCount(categoryId) {
+    if (!sessionData.correctCounts) return 0;
+    return sessionData.correctCounts[categoryId] || 0;
+  }
+
+  function incrementCorrectCount(categoryId) {
+    if (!sessionData.correctCounts) sessionData.correctCounts = {};
+    sessionData.correctCounts[categoryId] = (sessionData.correctCounts[categoryId] || 0) + 1;
+    saveSession();
   }
 
   function buildDeck(category) {
@@ -86,14 +103,21 @@
     return;
   }
 
-  CATEGORIES.forEach(cat => {
-    const btn = document.createElement('button');
-    btn.className = 'category-card';
-    btn.style.background = `linear-gradient(160deg, ${cat.accent}, ${shade(cat.accent, -18)})`;
-    btn.innerHTML = `<span class="card-count">${cat.words.length}</span>${cat.name}`;
-    btn.addEventListener('click', () => selectCategory(cat));
-    grid.appendChild(btn);
-  });
+  function renderCategoryGrid() {
+    grid.innerHTML = '';
+    CATEGORIES.forEach(cat => {
+      const btn = document.createElement('button');
+      btn.className = 'category-card';
+      btn.style.background = `linear-gradient(160deg, ${cat.accent}, ${shade(cat.accent, -18)})`;
+      const correctCount = getCorrectCount(cat.id);
+      const badgeHtml = correctCount > 0
+        ? `<span class="card-badge">✓ ${correctCount}</span>`
+        : '';
+      btn.innerHTML = `${badgeHtml}<span class="card-count">${cat.words.length}</span>${cat.name}`;
+      btn.addEventListener('click', () => selectCategory(cat));
+      grid.appendChild(btn);
+    });
+  }
 
   function shade(hex, percent) {
     const num = parseInt(hex.slice(1), 16);
@@ -247,7 +271,6 @@
     roundLog = [];
 
     const gameScreen = document.getElementById('screen-game');
-    gameScreen.classList.add('force-landscape');
     gameScreen.style.background = shade(currentCategory.accent, -85);
     document.getElementById('timer-bar-fill').style.background = currentCategory.accent;
     document.documentElement.style.setProperty('--accent', currentCategory.accent);
@@ -304,6 +327,7 @@
     if (!armed || secondsLeft <= 0) return;
     armed = false;
     roundLog.push({ word: currentWord, result: kind });
+    if (kind === 'correct') incrementCorrectCount(currentCategory.id);
     flash(kind);
     showWord();
   }
@@ -319,13 +343,12 @@
     orientationHandlerAttached = false;
   }
 
-  // The phone is always sensed as held in a natural vertical (portrait)
-  // grip against the forehead — this is the only orientation we read tilt
-  // from, regardless of what the game screen looks like visually (the
-  // "landscape" presentation is a pure CSS rotation, see .force-landscape).
-  // Mapping is inverted from the first version based on real-device
-  // testing: tilting the top of the phone DOWN now registers as pass,
-  // tilting it UP/back registers as correct.
+  // Tilt is sensed as a natural vertical (portrait) forehead grip — this is
+  // the axis we read regardless of which way the screen visually displays
+  // (display orientation is now fully natural/responsive, no CSS rotation
+  // trick). This tested acceptably even when physically holding landscape,
+  // so it's left as-is rather than reintroducing orientation-angle branching
+  // that couldn't be verified live last round.
   function onOrientation(e) {
     if (e.beta === null || e.beta === undefined) return;
     const tilt = e.beta;
@@ -352,7 +375,6 @@
   function endRound() {
     clearInterval(timerInterval);
     detachOrientationListener();
-    document.getElementById('screen-game').classList.remove('force-landscape');
     try {
       renderResults();
     } catch (err) {
