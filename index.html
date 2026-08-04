@@ -23,6 +23,7 @@
     <p class="tagline">Pick a category. Hold phone to your forehead. Tilt to play.</p>
     <div id="category-grid" class="category-grid"></div>
     <button id="btn-reset-progress" class="reset-link">Reset progress</button>
+    <button id="btn-debug-toggle" class="reset-link">Debug Tilt: Off</button>
     <p class="version-tag" id="version-tag"></p>
   </div>
 </section>
@@ -42,9 +43,17 @@
   <div class="center-wrap">
     <p class="ready-category" id="ready-category-label"></p>
     <h2 class="ready-heading">Hold the phone to your forehead</h2>
-    <p class="body-text">Screen facing your friends. Tilt the top back/up for correct, tilt it down to pass.</p>
+    <p class="body-text">Pick it up in portrait, then tap Start — it'll switch to landscape for you. Screen facing your friends. Nod the top down for correct, tip it back for pass.</p>
     <button id="btn-start-round" class="btn-primary">Start (3s)</button>
     <button id="btn-back-from-ready" class="btn-secondary">Back</button>
+  </div>
+</section>
+
+<!-- ROTATE TO LANDSCAPE FALLBACK -->
+<section id="screen-rotate" class="screen">
+  <div class="center-wrap">
+    <h2>Rotate to landscape</h2>
+    <p class="body-text">Turn your phone sideways to start the round.</p>
   </div>
 </section>
 
@@ -56,6 +65,7 @@
 <!-- GAME SCREEN -->
 <section id="screen-game" class="screen">
   <div id="game-flash" class="game-flash"></div>
+  <pre id="debug-overlay" class="debug-overlay"></pre>
   <div class="game-top">
     <div class="timer-bar-track"><div id="timer-bar-fill" class="timer-bar-fill"></div></div>
     <div id="timer-seconds" class="timer-seconds">60</div>
@@ -64,8 +74,8 @@
     <div id="game-word" class="game-word">Word</div>
   </div>
   <div class="game-hints">
-    <div class="hint hint-correct">▲ tilt up = correct</div>
-    <div class="hint hint-pass">▼ tilt down = pass</div>
+    <div class="hint hint-correct">▼ nod down = correct</div>
+    <div class="hint hint-pass">▲ tip up = pass</div>
   </div>
   <div class="game-tap-zones">
     <button id="tap-pass" class="tap-zone tap-zone-pass" aria-label="Pass"></button>
