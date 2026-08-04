@@ -1,10 +1,9 @@
 (() => {
-  const APP_VERSION = 'v1';
+  const APP_VERSION = 'v3';
   const ROUND_SECONDS = 60;
-  const TILT_DOWN_THRESHOLD = 60;    // beta below this = pass
-  const TILT_UP_THRESHOLD = 120;     // beta above this = correct
-  const NEUTRAL_LOW = 75;            // must return inside [NEUTRAL_LOW, NEUTRAL_HIGH]
-  const NEUTRAL_HIGH = 105;          // before another trigger can fire
+  const DELTA_TRIGGER = 22;   // degrees of tilt away from calibrated neutral to trigger
+  const DELTA_NEUTRAL = 10;   // must return within this band of neutral before re-arming
+  const BASELINE_DRIFT_TAU_MS = 1500; // safety-net re-centering speed if the phone's base pose changes
   const SESSION_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours
   const SESSION_KEY = 'headsup_session_v1';
 
@@ -56,6 +55,12 @@
     try {
       localStorage.setItem(SESSION_KEY, JSON.stringify(sessionData));
     } catch (e) { /* storage full or blocked — tracking just won't persist */ }
+  }
+
+  function resetSession() {
+    sessionData = { expiresAt: Date.now() + SESSION_TTL_MS, seen: {}, correctCounts: {} };
+    saveSession();
+    if (typeof renderCategoryGrid === 'function') renderCategoryGrid();
   }
 
   function getSeen(categoryId) {
@@ -139,6 +144,12 @@
 
   document.getElementById('btn-back-from-ready').addEventListener('click', () => showScreen('screen-home'));
   document.getElementById('btn-back-from-permission').addEventListener('click', () => showScreen('screen-home'));
+
+  document.getElementById('btn-reset-progress').addEventListener('click', () => {
+    if (confirm('Clear no-repeat word tracking and correct-count badges for every category?')) {
+      resetSession();
+    }
+  });
 
   // ---------- PERMISSION HANDLING (iOS-safe, no-op on Android) ----------
   function needsExplicitPermission() {
@@ -333,36 +344,102 @@
   }
 
   // ---------- TILT DETECTION ----------
+  let calibrated = false;
+  let baselineBeta = null;
+  let baselineGamma = null;
+  let lastEventTime = null;
+
   function attachOrientationListener() {
     if (orientationHandlerAttached) return;
+    calibrated = false;
+    baselineBeta = null;
+    baselineGamma = null;
+    lastEventTime = null;
     window.addEventListener('deviceorientation', onOrientation);
+    window.addEventListener('orientationchange', forceRecalibrate);
     orientationHandlerAttached = true;
   }
   function detachOrientationListener() {
     window.removeEventListener('deviceorientation', onOrientation);
+    window.removeEventListener('orientationchange', forceRecalibrate);
     orientationHandlerAttached = false;
   }
 
-  // Tilt is sensed as a natural vertical (portrait) forehead grip — this is
-  // the axis we read regardless of which way the screen visually displays
-  // (display orientation is now fully natural/responsive, no CSS rotation
-  // trick). This tested acceptably even when physically holding landscape,
-  // so it's left as-is rather than reintroducing orientation-angle branching
-  // that couldn't be verified live last round.
+  // Forces the very next orientation reading to become the new baseline.
+  // Fires when the phone physically rotates mid-round (e.g. category picked
+  // and Start tapped in portrait, then rotated to landscape to actually
+  // play) — without this, the baseline stays anchored to the old pose and
+  // the delta from it never returns to neutral, which locks up detection.
+  function forceRecalibrate() {
+    calibrated = false;
+    armed = true;
+  }
+
+  // The instant a round starts (or the phone rotates — see forceRecalibrate
+  // above), whatever tilt the phone is reporting becomes "neutral." Every
+  // reading after that is measured as a change from that baseline on BOTH
+  // axes (beta = front-back tilt in a portrait grip, gamma = front-back
+  // tilt in a landscape grip), and whichever axis is actually moving more
+  // is treated as active — so it auto-detects which axis matters without
+  // needing to know screen orientation in advance.
+  //
+  // The baseline also drifts slowly toward the current reading over time
+  // (BASELINE_DRIFT_TAU_MS), as a safety net in case a rotation happens
+  // without a clean orientationchange event — a real gameplay tilt is
+  // quick enough that this barely affects it, but a phone left resting in
+  // a new orientation will self-correct within a couple of seconds instead
+  // of staying stuck.
+  //
+  // One piece we can't verify without live hardware: landscape rotated
+  // left vs. right can flip gamma's sign. This flip is isolated to the
+  // block below — if correct/pass comes out backwards specifically in
+  // landscape, that's the line to invert.
   function onOrientation(e) {
-    if (e.beta === null || e.beta === undefined) return;
-    const tilt = e.beta;
+    if (e.beta === null || e.beta === undefined || e.gamma === null || e.gamma === undefined) return;
+    const now = performance.now();
+
+    if (!calibrated) {
+      baselineBeta = e.beta;
+      baselineGamma = e.gamma;
+      calibrated = true;
+      lastEventTime = now;
+      armed = true;
+      return;
+    }
+
+    const dt = lastEventTime !== null ? (now - lastEventTime) : 0;
+    lastEventTime = now;
+
+    const deltaBeta = e.beta - baselineBeta;
+    let deltaGamma = e.gamma - baselineGamma;
+
+    const angle = (screen.orientation && typeof screen.orientation.angle === 'number')
+      ? screen.orientation.angle : 0;
+    if (angle === -90 || angle === 270) {
+      deltaGamma = -deltaGamma; // flip here if landscape ever tests backwards
+    }
+
+    const dominant = Math.abs(deltaBeta) >= Math.abs(deltaGamma) ? deltaBeta : deltaGamma;
+
+    // Safety-net drift, applied after using this frame's delta for
+    // detection so a real tilt still measures against the pre-drift
+    // baseline.
+    if (dt > 0 && dt < 2000) {
+      const alpha = 1 - Math.exp(-dt / BASELINE_DRIFT_TAU_MS);
+      baselineBeta += deltaBeta * alpha;
+      baselineGamma += (e.gamma - baselineGamma) * alpha;
+    }
 
     if (!armed) {
-      if (tilt > NEUTRAL_LOW && tilt < NEUTRAL_HIGH) {
+      if (Math.abs(dominant) < DELTA_NEUTRAL) {
         armed = true;
       }
       return;
     }
 
-    if (tilt < TILT_DOWN_THRESHOLD) {
+    if (dominant < -DELTA_TRIGGER) {
       nextCard('pass');
-    } else if (tilt > TILT_UP_THRESHOLD) {
+    } else if (dominant > DELTA_TRIGGER) {
       nextCard('correct');
     }
   }
