@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#0B0D12">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.json">
 <title>Heads Up</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -36,7 +40,7 @@
   <div class="center-wrap">
     <p class="ready-category" id="ready-category-label"></p>
     <h2 class="ready-heading">Hold the phone to your forehead</h2>
-    <p class="body-text">Screen facing your friends. Tilt the top down for correct, tilt it back to pass.</p>
+    <p class="body-text">Screen facing your friends. Tilt the top back/up for correct, tilt it down to pass.</p>
     <button id="btn-start-round" class="btn-primary">Start (3s)</button>
     <button id="btn-back-from-ready" class="btn-secondary">Back</button>
   </div>
@@ -58,8 +62,8 @@
     <div id="game-word" class="game-word">Word</div>
   </div>
   <div class="game-hints">
-    <div class="hint hint-pass">▲ tilt up = pass</div>
-    <div class="hint hint-correct">▼ tilt down = correct</div>
+    <div class="hint hint-correct">▲ tilt up = correct</div>
+    <div class="hint hint-pass">▼ tilt down = pass</div>
   </div>
   <div class="game-tap-zones">
     <button id="tap-pass" class="tap-zone tap-zone-pass" aria-label="Pass"></button>
@@ -67,13 +71,16 @@
   </div>
 </section>
 
-<!-- ROUND OVER SCREEN -->
+<!-- ROUND OVER / RESULTS SCREEN -->
 <section id="screen-over" class="screen">
-  <div class="center-wrap">
+  <div class="over-wrap">
     <h2 class="over-heading">Time's up!</h2>
-    <p class="body-text" id="over-category-label"></p>
-    <button id="btn-play-again" class="btn-primary">Play Again</button>
-    <button id="btn-change-category" class="btn-secondary">Change Category</button>
+    <p class="over-score" id="over-score-label"></p>
+    <div class="results-list" id="results-list"></div>
+    <div class="over-actions">
+      <button id="btn-play-again" class="btn-primary">Play Again</button>
+      <button id="btn-change-category" class="btn-secondary">Change Category</button>
+    </div>
   </div>
 </section>
 
