@@ -514,4 +514,108 @@
     if (motionLog.length < 5000) {
       motionLog.push({
         t: Math.round(performance.now() - motionLogStartTime),
-        gx: round3(g.x), gy: round3(g.y
+        gx: round3(g.x), gy: round3(g.y), gz: round3(g.z),
+        type: type,
+        deltaX: delta === null ? 0 : round3(delta),
+        deltaY: baselineAy === null ? 0 : round3(g.y - baselineAy),
+        deltaZ: baselineAz === null ? 0 : round3(g.z - baselineAz),
+        armed: armed,
+        note: note
+      });
+    }
+
+    if (debugEnabled) {
+      const overlay = document.getElementById('debug-overlay');
+      overlay.classList.add('show');
+      overlay.textContent =
+        'type: ' + type + '\n' +
+        'raw x/y/z: ' + g.x.toFixed(2) + ' / ' + g.y.toFixed(2) + ' / ' + g.z.toFixed(2) + '\n' +
+        'baseline: ' + (baselineAx === null ? '-' : baselineAx.toFixed(2)) + '\n' +
+        'delta: ' + (delta === null ? '-' : delta.toFixed(2)) + '\n' +
+        'armed: ' + armed + (note ? ' [' + note + ']' : '') + '\n' +
+        'trigger/neutral: ' + DELTA_TRIGGER + ' / ' + DELTA_NEUTRAL;
+    }
+  }
+
+  // ---------- TAP FALLBACK ----------
+  document.getElementById('tap-correct').addEventListener('click', () => nextCard('correct'));
+  document.getElementById('tap-pass').addEventListener('click', () => nextCard('pass'));
+
+  // ---------- END ROUND ----------
+  function endRound() {
+    if (!roundActive) {
+      logEvent('endRound-ignored-already-inactive');
+      return; // already ended once — never let a stray second call re-show results
+    }
+    roundActive = false;
+    logEvent('endRound');
+    clearInterval(timerInterval);
+    detachMotionListener();
+    unlockOrientation();
+    try {
+      renderResults();
+    } catch (err) {
+      // Even if results rendering fails for some reason, still show the
+      // screen rather than leaving the player stuck on the game view.
+    }
+    showScreen('screen-over');
+  }
+
+  function renderResults() {
+    const correctCount = roundLog.filter(r => r.result === 'correct').length;
+    const totalCount = roundLog.length;
+    document.getElementById('over-score-label').textContent =
+      totalCount === 0 ? 'No words flipped this round' : `${correctCount} correct out of ${totalCount}`;
+
+    const list = document.getElementById('results-list');
+    list.innerHTML = '';
+
+    if (totalCount === 0) {
+      list.innerHTML = '<p class="results-empty">Nothing flipped — try tilting further next time.</p>';
+      return;
+    }
+
+    roundLog.forEach(entry => {
+      const row = document.createElement('div');
+      row.className = 'result-row ' + (entry.result === 'correct' ? 'result-correct' : 'result-pass');
+      const word = document.createElement('span');
+      word.textContent = entry.word;
+      const icon = document.createElement('span');
+      icon.className = 'result-icon';
+      icon.textContent = entry.result === 'correct' ? '✓' : '✕';
+      row.appendChild(word);
+      row.appendChild(icon);
+      list.appendChild(row);
+    });
+  }
+
+  document.getElementById('btn-play-again').addEventListener('click', () => beginCountdown());
+  document.getElementById('btn-change-category').addEventListener('click', () => showScreen('screen-home'));
+
+  document.getElementById('btn-download-diagnostics').addEventListener('click', () => {
+    const payload = {
+      appVersion: APP_VERSION,
+      downloadedAt: new Date().toISOString(),
+      userAgent: navigator.userAgent,
+      screen: { width: window.screen.width, height: window.screen.height, dpr: window.devicePixelRatio },
+      orientationType: (screen.orientation && screen.orientation.type) || null,
+      category: currentCategory ? currentCategory.id : null,
+      tiltConfig: { DELTA_TRIGGER, DELTA_NEUTRAL, NOD_DOWN_SIGN },
+      roundResults: roundLog,
+      motionSampleCount: motionLog.length,
+      motionLog: motionLog,
+      eventLog: eventLog
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'headsup-diagnostics-' + Date.now() + '.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  });
+
+  showScreen('screen-home');
+})();
