@@ -1,11 +1,13 @@
 (() => {
-  const APP_VERSION = 'v3';
+  const APP_VERSION = 'v4';
   const ROUND_SECONDS = 60;
-  const DELTA_TRIGGER = 22;   // degrees of tilt away from calibrated neutral to trigger
-  const DELTA_NEUTRAL = 10;   // must return within this band of neutral before re-arming
-  const BASELINE_DRIFT_TAU_MS = 1500; // safety-net re-centering speed if the phone's base pose changes
+  const DELTA_TRIGGER = 4.5;  // m/s^2 change from baseline to trigger — tuned for a deliberate nod
+  const DELTA_NEUTRAL = 2.0;  // m/s^2 — must return within this band before re-arming
   const SESSION_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours
   const SESSION_KEY = 'headsup_session_v1';
+  const NOD_DOWN_SIGN = 1; // flip to -1 if a downward nod ever registers as pass instead of correct
+
+  let debugEnabled = false;
 
   document.getElementById('version-tag').textContent = 'Heads Up · ' + APP_VERSION;
 
@@ -151,31 +153,46 @@
     }
   });
 
+  const debugToggleBtn = document.getElementById('btn-debug-toggle');
+  debugToggleBtn.addEventListener('click', () => {
+    debugEnabled = !debugEnabled;
+    debugToggleBtn.textContent = 'Debug Tilt: ' + (debugEnabled ? 'On' : 'Off');
+  });
+
   // ---------- PERMISSION HANDLING (iOS-safe, no-op on Android) ----------
   function needsExplicitPermission() {
-    return typeof DeviceOrientationEvent !== 'undefined' &&
-           typeof DeviceOrientationEvent.requestPermission === 'function';
+    return (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') ||
+           (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function');
   }
 
   document.getElementById('btn-start-round').addEventListener('click', () => {
     tryEnterFullscreen(); // best-effort, must be called from a direct user gesture
     ensureAudioContext(); // must also be unlocked from a direct user gesture
-    if (needsExplicitPermission()) {
-      showScreen('screen-permission');
-    } else {
-      beginCountdown();
-    }
+    // Orientation lock (and the fullscreen it depends on) needs a beat to
+    // actually engage on Android Chrome before attempting it.
+    setTimeout(() => {
+      if (needsExplicitPermission()) {
+        showScreen('screen-permission');
+      } else {
+        lockLandscapeThenProceed();
+      }
+    }, 150);
   });
 
   document.getElementById('btn-request-permission').addEventListener('click', () => {
-    DeviceOrientationEvent.requestPermission().then(result => {
-      if (result === 'granted') {
-        beginCountdown();
-      } else {
+    const requests = [];
+    if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+      requests.push(DeviceMotionEvent.requestPermission());
+    }
+    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+      requests.push(DeviceOrientationEvent.requestPermission());
+    }
+    Promise.all(requests).then(results => {
+      if (results.some(r => r !== 'granted')) {
         alert('Motion access was denied. You can still play using the on-screen tap zones.');
-        beginCountdown();
       }
-    }).catch(() => beginCountdown());
+      lockLandscapeThenProceed();
+    }).catch(() => lockLandscapeThenProceed());
   });
 
   // ---------- FULLSCREEN ----------
@@ -247,6 +264,46 @@
     osc.stop(now + durationMs / 1000 + 0.02);
   }
 
+  // ---------- ORIENTATION LOCK (landscape for gameplay only) ----------
+  let orientationWasLocked = false;
+
+  function lockLandscapeThenProceed() {
+    const orientation = screen.orientation;
+    if (orientation && typeof orientation.lock === 'function') {
+      orientation.lock('landscape').then(() => {
+        orientationWasLocked = true;
+        beginCountdown();
+      }).catch(() => {
+        waitForManualLandscapeRotation();
+      });
+    } else {
+      waitForManualLandscapeRotation();
+    }
+  }
+
+  function waitForManualLandscapeRotation() {
+    const mq = window.matchMedia('(orientation: landscape)');
+    if (mq.matches) {
+      beginCountdown();
+      return;
+    }
+    showScreen('screen-rotate');
+    const handler = (ev) => {
+      if (ev.matches) {
+        mq.removeEventListener('change', handler);
+        beginCountdown();
+      }
+    };
+    mq.addEventListener('change', handler);
+  }
+
+  function unlockOrientation() {
+    if (orientationWasLocked && screen.orientation && typeof screen.orientation.unlock === 'function') {
+      try { screen.orientation.unlock(); } catch (e) { /* ignore */ }
+    }
+    orientationWasLocked = false;
+  }
+
   // ---------- COUNTDOWN ----------
   function beginCountdown() {
     showScreen('screen-countdown');
@@ -289,7 +346,7 @@
     showWord();
     updateTimerUI();
     showScreen('screen-game');
-    attachOrientationListener();
+    attachMotionListener();
 
     timerInterval = setInterval(() => {
       secondsLeft -= 1;
@@ -343,104 +400,82 @@
     showWord();
   }
 
-  // ---------- TILT DETECTION ----------
+  // ---------- TILT DETECTION (landscape-only, gravity-vector based) ----------
+  // Orientation is locked to landscape before a round starts (see
+  // lockLandscapeThenProceed above), so there is exactly one physical
+  // orientation to handle here — no per-frame axis-guessing needed.
+  //
+  // Using devicemotion's accelerationIncludingGravity instead of
+  // deviceorientation's beta/gamma angles deliberately: Euler angles have a
+  // singularity (gimbal lock) right around beta = 90°, which is exactly
+  // where a phone sits when held vertically — i.e. this whole game's use
+  // case sat right in the least stable part of that math. The raw gravity
+  // vector has no such singularity, so it should behave predictably.
+  //
+  // accelerationIncludingGravity is reported in the phone's fixed physical
+  // frame, which does not rotate with the screen — so landscape-primary
+  // vs. landscape-secondary can read the same physical nod with opposite
+  // sign on this axis. That's corrected below using screen.orientation.type,
+  // read once per round (stable, not noisy, unlike per-frame angle math).
   let calibrated = false;
-  let baselineBeta = null;
-  let baselineGamma = null;
-  let lastEventTime = null;
+  let baselineAx = null;
 
-  function attachOrientationListener() {
+  function attachMotionListener() {
     if (orientationHandlerAttached) return;
     calibrated = false;
-    baselineBeta = null;
-    baselineGamma = null;
-    lastEventTime = null;
-    window.addEventListener('deviceorientation', onOrientation);
-    window.addEventListener('orientationchange', forceRecalibrate);
+    baselineAx = null;
+    window.addEventListener('devicemotion', onMotion);
     orientationHandlerAttached = true;
   }
-  function detachOrientationListener() {
-    window.removeEventListener('deviceorientation', onOrientation);
-    window.removeEventListener('orientationchange', forceRecalibrate);
+  function detachMotionListener() {
+    window.removeEventListener('devicemotion', onMotion);
     orientationHandlerAttached = false;
+    document.getElementById('debug-overlay').classList.remove('show');
   }
 
-  // Forces the very next orientation reading to become the new baseline.
-  // Fires when the phone physically rotates mid-round (e.g. category picked
-  // and Start tapped in portrait, then rotated to landscape to actually
-  // play) — without this, the baseline stays anchored to the old pose and
-  // the delta from it never returns to neutral, which locks up detection.
-  function forceRecalibrate() {
-    calibrated = false;
-    armed = true;
-  }
+  // One piece we can't verify without live hardware: which raw sign means
+  // "nodded down." NOD_DOWN_SIGN at the top of the file is the single spot
+  // to flip if correct/pass ever come out backwards.
+  function onMotion(e) {
+    const g = e.accelerationIncludingGravity;
+    if (!g || g.x === null || g.x === undefined) return;
 
-  // The instant a round starts (or the phone rotates — see forceRecalibrate
-  // above), whatever tilt the phone is reporting becomes "neutral." Every
-  // reading after that is measured as a change from that baseline on BOTH
-  // axes (beta = front-back tilt in a portrait grip, gamma = front-back
-  // tilt in a landscape grip), and whichever axis is actually moving more
-  // is treated as active — so it auto-detects which axis matters without
-  // needing to know screen orientation in advance.
-  //
-  // The baseline also drifts slowly toward the current reading over time
-  // (BASELINE_DRIFT_TAU_MS), as a safety net in case a rotation happens
-  // without a clean orientationchange event — a real gameplay tilt is
-  // quick enough that this barely affects it, but a phone left resting in
-  // a new orientation will self-correct within a couple of seconds instead
-  // of staying stuck.
-  //
-  // One piece we can't verify without live hardware: landscape rotated
-  // left vs. right can flip gamma's sign. This flip is isolated to the
-  // block below — if correct/pass comes out backwards specifically in
-  // landscape, that's the line to invert.
-  function onOrientation(e) {
-    if (e.beta === null || e.beta === undefined || e.gamma === null || e.gamma === undefined) return;
-    const now = performance.now();
+    const type = (screen.orientation && screen.orientation.type) || '';
+    const orientSign = type.indexOf('landscape-secondary') !== -1 ? -1 : 1;
+    const ax = g.x * orientSign * NOD_DOWN_SIGN;
 
     if (!calibrated) {
-      baselineBeta = e.beta;
-      baselineGamma = e.gamma;
+      baselineAx = ax;
       calibrated = true;
-      lastEventTime = now;
       armed = true;
       return;
     }
 
-    const dt = lastEventTime !== null ? (now - lastEventTime) : 0;
-    lastEventTime = now;
+    const delta = ax - baselineAx;
 
-    const deltaBeta = e.beta - baselineBeta;
-    let deltaGamma = e.gamma - baselineGamma;
-
-    const angle = (screen.orientation && typeof screen.orientation.angle === 'number')
-      ? screen.orientation.angle : 0;
-    if (angle === -90 || angle === 270) {
-      deltaGamma = -deltaGamma; // flip here if landscape ever tests backwards
-    }
-
-    const dominant = Math.abs(deltaBeta) >= Math.abs(deltaGamma) ? deltaBeta : deltaGamma;
-
-    // Safety-net drift, applied after using this frame's delta for
-    // detection so a real tilt still measures against the pre-drift
-    // baseline.
-    if (dt > 0 && dt < 2000) {
-      const alpha = 1 - Math.exp(-dt / BASELINE_DRIFT_TAU_MS);
-      baselineBeta += deltaBeta * alpha;
-      baselineGamma += (e.gamma - baselineGamma) * alpha;
+    if (debugEnabled) {
+      const overlay = document.getElementById('debug-overlay');
+      overlay.classList.add('show');
+      overlay.textContent =
+        'type: ' + type + '\n' +
+        'raw x/y/z: ' + g.x.toFixed(2) + ' / ' + g.y.toFixed(2) + ' / ' + g.z.toFixed(2) + '\n' +
+        'baseline: ' + baselineAx.toFixed(2) + '\n' +
+        'delta: ' + delta.toFixed(2) + '\n' +
+        'armed: ' + armed + '\n' +
+        'trigger/neutral: ' + DELTA_TRIGGER + ' / ' + DELTA_NEUTRAL;
     }
 
     if (!armed) {
-      if (Math.abs(dominant) < DELTA_NEUTRAL) {
+      if (Math.abs(delta) < DELTA_NEUTRAL) {
         armed = true;
       }
       return;
     }
 
-    if (dominant < -DELTA_TRIGGER) {
-      nextCard('pass');
-    } else if (dominant > DELTA_TRIGGER) {
+    if (delta > DELTA_TRIGGER) {
       nextCard('correct');
+    } else if (delta < -DELTA_TRIGGER) {
+      nextCard('pass');
     }
   }
 
@@ -451,7 +486,8 @@
   // ---------- END ROUND ----------
   function endRound() {
     clearInterval(timerInterval);
-    detachOrientationListener();
+    detachMotionListener();
+    unlockOrientation();
     try {
       renderResults();
     } catch (err) {
