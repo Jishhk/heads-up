@@ -213,7 +213,7 @@ body {
 }
 .game-word {
   font-family: 'Archivo Black', sans-serif;
-  font-size: clamp(32px, 12vw, 64px);
+  font-size: clamp(56px, 16vh, 130px);
   line-height: 1.05;
   word-break: break-word;
 }
