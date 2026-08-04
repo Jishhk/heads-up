@@ -124,8 +124,23 @@ body {
   font-size: 11px;
   opacity: 0.5;
   text-align: center;
-  margin: 16px 0 0;
+  margin: 4px 0 0;
 }
+
+.reset-link {
+  display: block;
+  margin: 16px auto 0;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+.reset-link:active { opacity: 0.6; }
 
 /* ---------- CENTER / GENERIC SUBSCREENS ---------- */
 .center-wrap {
