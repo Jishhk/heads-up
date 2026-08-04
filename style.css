@@ -245,6 +245,41 @@ body {
 .over-heading { font-family: 'Archivo Black', sans-serif; font-size: 30px; }
 #over-category-label { color: var(--accent); font-weight: 600; }
 
+/* ---------- FULLSCREEN TOGGLE ---------- */
+#btn-fullscreen {
+  position: fixed;
+  top: max(14px, env(safe-area-inset-top));
+  right: max(14px, env(safe-area-inset-right));
+  z-index: 50;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid #2A2F3A;
+  background: rgba(20, 23, 29, 0.8);
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+}
+#btn-fullscreen:active { opacity: 0.7; }
+
+/* Shrink the word in landscape so it doesn't overflow a short viewport */
+@media (orientation: landscape) {
+  .game-word {
+    font-size: clamp(28px, 9vh, 56px);
+  }
+  .logo {
+    font-size: clamp(32px, 8vh, 48px);
+  }
+  .game-tap-zones {
+    height: 26%;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
 }
