@@ -241,9 +241,70 @@ body {
   background: transparent;
 }
 
-/* ---------- ROUND OVER ---------- */
-.over-heading { font-family: 'Archivo Black', sans-serif; font-size: 30px; }
-#over-category-label { color: var(--accent); font-weight: 600; }
+/* Rotates the game screen 90° so the word displays landscape-style for
+   your friends, regardless of how the phone is physically held. Applied
+   via JS when a round starts. */
+#screen-game.force-landscape {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: 100vh;
+  height: 100vw;
+  transform: translate(-50%, -50%) rotate(90deg);
+  transform-origin: center center;
+}
+
+/* ---------- ROUND OVER / RESULTS ---------- */
+.over-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: max(20px, env(safe-area-inset-top)) 24px max(16px, env(safe-area-inset-bottom));
+  overflow: hidden;
+}
+.over-heading {
+  font-family: 'Archivo Black', sans-serif;
+  font-size: 28px;
+  text-align: center;
+  margin: 4px 0 2px;
+}
+.over-score {
+  text-align: center;
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 16px;
+  margin: 0 0 16px;
+}
+.results-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.result-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--surface);
+  font-size: 15px;
+  border-left: 4px solid transparent;
+}
+.result-row.result-correct { border-left-color: var(--correct); }
+.result-row.result-pass { border-left-color: var(--pass); }
+.result-icon { font-weight: 700; flex-shrink: 0; }
+.result-row.result-correct .result-icon { color: var(--correct); }
+.result-row.result-pass .result-icon { color: var(--pass); }
+.results-empty { color: var(--muted); text-align: center; padding: 24px 0; }
+.over-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
 
 /* ---------- FULLSCREEN TOGGLE ---------- */
 #btn-fullscreen {
@@ -266,19 +327,6 @@ body {
   backdrop-filter: blur(4px);
 }
 #btn-fullscreen:active { opacity: 0.7; }
-
-/* Shrink the word in landscape so it doesn't overflow a short viewport */
-@media (orientation: landscape) {
-  .game-word {
-    font-size: clamp(28px, 9vh, 56px);
-  }
-  .logo {
-    font-size: clamp(32px, 8vh, 48px);
-  }
-  .game-tap-zones {
-    height: 26%;
-  }
-}
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
