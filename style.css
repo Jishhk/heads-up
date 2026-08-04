@@ -104,6 +104,29 @@ body {
   opacity: 0.55;
 }
 
+.category-card .card-badge {
+  position: absolute;
+  top: 12px;
+  left: 14px;
+  font-size: 12px;
+  font-weight: 700;
+  background: rgba(11, 13, 18, 0.35);
+  color: #0B0D12;
+  padding: 2px 8px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.version-tag {
+  color: var(--muted);
+  font-size: 11px;
+  opacity: 0.5;
+  text-align: center;
+  margin: 16px 0 0;
+}
+
 /* ---------- CENTER / GENERIC SUBSCREENS ---------- */
 .center-wrap {
   flex: 1;
@@ -213,7 +236,7 @@ body {
 }
 .game-word {
   font-family: 'Archivo Black', sans-serif;
-  font-size: clamp(56px, 16vh, 130px);
+  font-size: clamp(48px, 18vmin, 140px);
   line-height: 1.05;
   word-break: break-word;
 }
@@ -239,19 +262,6 @@ body {
   flex: 1;
   border: none;
   background: transparent;
-}
-
-/* Rotates the game screen 90° so the word displays landscape-style for
-   your friends, regardless of how the phone is physically held. Applied
-   via JS when a round starts. */
-#screen-game.force-landscape {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  width: 100vh;
-  height: 100vw;
-  transform: translate(-50%, -50%) rotate(90deg);
-  transform-origin: center center;
 }
 
 /* ---------- ROUND OVER / RESULTS ---------- */
