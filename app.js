@@ -1,5 +1,5 @@
 (() => {
-  const APP_VERSION = 'v4';
+  const APP_VERSION = 'v5';
   const ROUND_SECONDS = 60;
   const DELTA_TRIGGER = 4.5;  // m/s^2 change from baseline to trigger — tuned for a deliberate nod
   const DELTA_NEUTRAL = 2.0;  // m/s^2 — must return within this band before re-arming
@@ -9,12 +9,27 @@
 
   let debugEnabled = false;
 
+  // ---------- DIAGNOSTICS ----------
+  // A general event log (screen transitions, round lifecycle, orientation
+  // lock outcomes) plus a per-round motion sample log, downloadable from
+  // the results screen. This exists because reading a live overlay while
+  // physically nodding a phone against your forehead isn't practical —
+  // better to capture everything and inspect it after the fact.
+  let eventLog = [];
+  let motionLog = [];
+
+  function logEvent(name, data) {
+    eventLog.push({ t: Math.round(performance.now()), name, data: data === undefined ? null : data });
+    if (eventLog.length > 500) eventLog.shift();
+  }
+
   document.getElementById('version-tag').textContent = 'Heads Up · ' + APP_VERSION;
 
   const screens = {};
   document.querySelectorAll('.screen').forEach(el => screens[el.id] = el);
 
   function showScreen(id) {
+    logEvent('showScreen', id);
     Object.values(screens).forEach(s => s.classList.remove('active'));
     screens[id].classList.add('active');
     if (id === 'screen-home' && typeof renderCategoryGrid === 'function') {
@@ -32,6 +47,7 @@
   let secondsLeft = ROUND_SECONDS;
   let armed = true; // whether a new trigger is allowed (hysteresis gate)
   let orientationHandlerAttached = false;
+  let roundActive = false;
 
   // ---------- SESSION / NO-REPEAT TRACKING ----------
   // Avoids repeating words within a TTL window using localStorage, so
@@ -272,11 +288,14 @@
     if (orientation && typeof orientation.lock === 'function') {
       orientation.lock('landscape').then(() => {
         orientationWasLocked = true;
+        logEvent('orientationLock', 'succeeded');
         beginCountdown();
-      }).catch(() => {
+      }).catch((err) => {
+        logEvent('orientationLock', 'failed: ' + (err && err.message ? err.message : String(err)));
         waitForManualLandscapeRotation();
       });
     } else {
+      logEvent('orientationLock', 'unsupported');
       waitForManualLandscapeRotation();
     }
   }
@@ -332,11 +351,14 @@
   }
 
   function startRound() {
+    logEvent('startRound', currentCategory ? currentCategory.id : null);
+    roundActive = true;
     deck = buildDeck(currentCategory);
     deckIndex = 0;
     secondsLeft = ROUND_SECONDS;
     armed = true;
     roundLog = [];
+    motionLog = [];
 
     const gameScreen = document.getElementById('screen-game');
     gameScreen.style.background = shade(currentCategory.accent, -85);
@@ -348,13 +370,19 @@
     showScreen('screen-game');
     attachMotionListener();
 
-    timerInterval = setInterval(() => {
+    if (timerInterval) clearInterval(timerInterval); // defensive: never let two intervals run
+    const thisInterval = setInterval(() => {
+      if (!roundActive || timerInterval !== thisInterval) {
+        clearInterval(thisInterval); // stale interval from a prior round — stop it
+        return;
+      }
       secondsLeft -= 1;
       updateTimerUI();
       if (secondsLeft <= 0) {
         endRound();
       }
     }, 1000);
+    timerInterval = thisInterval;
   }
 
   function updateTimerUI() {
@@ -419,11 +447,17 @@
   // read once per round (stable, not noisy, unlike per-frame angle math).
   let calibrated = false;
   let baselineAx = null;
+  let baselineAy = null;
+  let baselineAz = null;
+  let motionLogStartTime = null;
 
   function attachMotionListener() {
     if (orientationHandlerAttached) return;
     calibrated = false;
     baselineAx = null;
+    baselineAy = null;
+    baselineAz = null;
+    motionLogStartTime = performance.now();
     window.addEventListener('devicemotion', onMotion);
     orientationHandlerAttached = true;
   }
@@ -433,9 +467,16 @@
     document.getElementById('debug-overlay').classList.remove('show');
   }
 
+  function round3(n) {
+    return Math.round(n * 1000) / 1000;
+  }
+
   // One piece we can't verify without live hardware: which raw sign means
   // "nodded down." NOD_DOWN_SIGN at the top of the file is the single spot
-  // to flip if correct/pass ever come out backwards.
+  // to flip if correct/pass ever come out backwards. The log below records
+  // baseline-relative deltas for all three raw axes (not just the X axis
+  // this build actually triggers on), specifically so a downloaded log can
+  // reveal which axis really correlates with a nod if X turns out wrong.
   function onMotion(e) {
     const g = e.accelerationIncludingGravity;
     if (!g || g.x === null || g.x === undefined) return;
@@ -444,89 +485,33 @@
     const orientSign = type.indexOf('landscape-secondary') !== -1 ? -1 : 1;
     const ax = g.x * orientSign * NOD_DOWN_SIGN;
 
+    let note = '';
+    let delta = null;
+
     if (!calibrated) {
       baselineAx = ax;
+      baselineAy = g.y;
+      baselineAz = g.z;
       calibrated = true;
       armed = true;
-      return;
-    }
-
-    const delta = ax - baselineAx;
-
-    if (debugEnabled) {
-      const overlay = document.getElementById('debug-overlay');
-      overlay.classList.add('show');
-      overlay.textContent =
-        'type: ' + type + '\n' +
-        'raw x/y/z: ' + g.x.toFixed(2) + ' / ' + g.y.toFixed(2) + ' / ' + g.z.toFixed(2) + '\n' +
-        'baseline: ' + baselineAx.toFixed(2) + '\n' +
-        'delta: ' + delta.toFixed(2) + '\n' +
-        'armed: ' + armed + '\n' +
-        'trigger/neutral: ' + DELTA_TRIGGER + ' / ' + DELTA_NEUTRAL;
-    }
-
-    if (!armed) {
-      if (Math.abs(delta) < DELTA_NEUTRAL) {
-        armed = true;
+      note = 'calibrated';
+    } else {
+      delta = ax - baselineAx;
+      if (!armed) {
+        if (Math.abs(delta) < DELTA_NEUTRAL) {
+          armed = true;
+          note = 'rearmed';
+        }
+      } else if (delta > DELTA_TRIGGER) {
+        note = 'trigger:correct';
+        nextCard('correct');
+      } else if (delta < -DELTA_TRIGGER) {
+        note = 'trigger:pass';
+        nextCard('pass');
       }
-      return;
     }
 
-    if (delta > DELTA_TRIGGER) {
-      nextCard('correct');
-    } else if (delta < -DELTA_TRIGGER) {
-      nextCard('pass');
-    }
-  }
-
-  // ---------- TAP FALLBACK ----------
-  document.getElementById('tap-correct').addEventListener('click', () => nextCard('correct'));
-  document.getElementById('tap-pass').addEventListener('click', () => nextCard('pass'));
-
-  // ---------- END ROUND ----------
-  function endRound() {
-    clearInterval(timerInterval);
-    detachMotionListener();
-    unlockOrientation();
-    try {
-      renderResults();
-    } catch (err) {
-      // Even if results rendering fails for some reason, still show the
-      // screen rather than leaving the player stuck on the game view.
-    }
-    showScreen('screen-over');
-  }
-
-  function renderResults() {
-    const correctCount = roundLog.filter(r => r.result === 'correct').length;
-    const totalCount = roundLog.length;
-    document.getElementById('over-score-label').textContent =
-      totalCount === 0 ? 'No words flipped this round' : `${correctCount} correct out of ${totalCount}`;
-
-    const list = document.getElementById('results-list');
-    list.innerHTML = '';
-
-    if (totalCount === 0) {
-      list.innerHTML = '<p class="results-empty">Nothing flipped — try tilting further next time.</p>';
-      return;
-    }
-
-    roundLog.forEach(entry => {
-      const row = document.createElement('div');
-      row.className = 'result-row ' + (entry.result === 'correct' ? 'result-correct' : 'result-pass');
-      const word = document.createElement('span');
-      word.textContent = entry.word;
-      const icon = document.createElement('span');
-      icon.className = 'result-icon';
-      icon.textContent = entry.result === 'correct' ? '✓' : '✕';
-      row.appendChild(word);
-      row.appendChild(icon);
-      list.appendChild(row);
-    });
-  }
-
-  document.getElementById('btn-play-again').addEventListener('click', () => beginCountdown());
-  document.getElementById('btn-change-category').addEventListener('click', () => showScreen('screen-home'));
-
-  showScreen('screen-home');
-})();
+    if (motionLog.length < 5000) {
+      motionLog.push({
+        t: Math.round(performance.now() - motionLogStartTime),
+        gx: round3(g.x), gy: round3(g.y
