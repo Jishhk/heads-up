@@ -331,3 +331,307 @@
     }
     orientationWasLocked = false;
   }
+
+// ---------- COUNTDOWN ----------
+  function beginCountdown() {
+    showScreen('screen-countdown');
+    let n = 3;
+    const el = document.getElementById('countdown-number');
+    el.textContent = n;
+    const iv = setInterval(() => {
+      n -= 1;
+      if (n <= 0) {
+        clearInterval(iv);
+        startRound();
+      } else {
+        el.textContent = n;
+      }
+    }, 800);
+  }
+
+  // ---------- ROUND ----------
+  function shuffledDeck(words) {
+    const arr = words.slice();
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function startRound() {
+    logEvent('startRound', currentCategory ? currentCategory.id : null);
+    roundActive = true;
+    deck = buildDeck(currentCategory);
+    deckIndex = 0;
+    secondsLeft = ROUND_SECONDS;
+    armed = true;
+    roundLog = [];
+    motionLog = [];
+
+    const gameScreen = document.getElementById('screen-game');
+    gameScreen.style.background = shade(currentCategory.accent, -85);
+    document.getElementById('timer-bar-fill').style.background = currentCategory.accent;
+    document.documentElement.style.setProperty('--accent', currentCategory.accent);
+
+    showWord();
+    updateTimerUI();
+    showScreen('screen-game');
+    attachMotionListener();
+
+    if (timerInterval) clearInterval(timerInterval); // defensive: never let two intervals run
+    const thisInterval = setInterval(() => {
+      if (!roundActive || timerInterval !== thisInterval) {
+        clearInterval(thisInterval); // stale interval from a prior round — stop it
+        return;
+      }
+      secondsLeft -= 1;
+      updateTimerUI();
+      if (secondsLeft <= 0) {
+        endRound();
+      }
+    }, 1000);
+    timerInterval = thisInterval;
+  }
+
+  function updateTimerUI() {
+    document.getElementById('timer-seconds').textContent = secondsLeft;
+    const pct = Math.max(0, (secondsLeft / ROUND_SECONDS) * 100);
+    document.getElementById('timer-bar-fill').style.width = pct + '%';
+    if (secondsLeft <= 10) {
+      document.getElementById('timer-bar-fill').style.background = 'var(--pass)';
+    }
+    if (secondsLeft > 0 && secondsLeft <= 5) {
+      beep(880, 120);
+    } else if (secondsLeft === 0) {
+      beep(440, 300);
+    }
+  }
+
+  function showWord() {
+    if (deckIndex >= deck.length) {
+      deck = buildDeck(currentCategory);
+      deckIndex = 0;
+    }
+    currentWord = deck[deckIndex];
+    document.getElementById('game-word').textContent = currentWord;
+    deckIndex += 1;
+    markSeen(currentCategory.id, currentWord);
+  }
+
+  function flash(kind) {
+    const el = document.getElementById('game-flash');
+    el.classList.add(kind === 'correct' ? 'show-correct' : 'show-pass');
+    if (navigator.vibrate) navigator.vibrate(kind === 'correct' ? 40 : [20, 40, 20]);
+    setTimeout(() => {
+      el.classList.remove('show-correct', 'show-pass');
+    }, 180);
+  }
+
+  function nextCard(kind) {
+    if (!armed || secondsLeft <= 0) return;
+    armed = false;
+    roundLog.push({ word: currentWord, result: kind });
+    if (kind === 'correct') incrementCorrectCount(currentCategory.id);
+    flash(kind);
+    showWord();
+  }
+
+  // ---------- TILT DETECTION (landscape-only, gravity-vector based) ----------
+  // Orientation is locked to landscape before a round starts (see
+  // lockLandscapeThenProceed above), so there is exactly one physical
+  // orientation to handle here — no per-frame axis-guessing needed.
+  //
+  // Using devicemotion's accelerationIncludingGravity instead of
+  // deviceorientation's beta/gamma angles deliberately: Euler angles have a
+  // singularity (gimbal lock) right around beta = 90°, which is exactly
+  // where a phone sits when held vertically — i.e. this whole game's use
+  // case sat right in the least stable part of that math. The raw gravity
+  // vector has no such singularity, so it behaves predictably.
+  //
+  // AXIS: originally triggered on the phone's local X-axis, based on a
+  // theoretical guess about which axis rotates during a landscape nod.
+  // A real downloaded motion log proved that guess wrong: X barely moved
+  // positive at all (99th percentile +1.4, essentially never crossing a
+  // "correct" threshold) while drifting hard negative — which is exactly
+  // why every trigger came back "pass." The same log showed the phone's
+  // Z-axis swinging ±15 m/s^2 and clearly alternating with each nod — the
+  // real gesture signal. Switched to Z based on that data.
+  //
+  // accelerationIncludingGravity is reported in the phone's fixed physical
+  // frame, which does not rotate with the screen — so landscape-primary
+  // vs. landscape-secondary can read the same physical nod with opposite
+  // sign. That's corrected below using screen.orientation.type, read once
+  // per round (stable, not noisy, unlike per-frame angle math).
+  let calibrated = false;
+  let baselineAx = null;
+  let baselineAy = null;
+  let baselineAz = null;
+  let motionLogStartTime = null;
+
+  function attachMotionListener() {
+    if (orientationHandlerAttached) return;
+    calibrated = false;
+    baselineAx = null;
+    baselineAy = null;
+    baselineAz = null;
+    motionLogStartTime = performance.now();
+    window.addEventListener('devicemotion', onMotion);
+    orientationHandlerAttached = true;
+  }
+  function detachMotionListener() {
+    window.removeEventListener('devicemotion', onMotion);
+    orientationHandlerAttached = false;
+    document.getElementById('debug-overlay').classList.remove('show');
+  }
+
+  function round3(n) {
+    return Math.round(n * 1000) / 1000;
+  }
+
+  // One piece we still can't verify without live hardware: which raw sign
+  // means "nodded down." NOD_DOWN_SIGN at the top of the file is the single
+  // spot to flip if correct/pass ever come out backwards — but which AXIS
+  // to read is now backed by real data, not a guess.
+  function onMotion(e) {
+    const g = e.accelerationIncludingGravity;
+    if (!g || g.z === null || g.z === undefined) return;
+
+    const type = (screen.orientation && screen.orientation.type) || '';
+    const orientSign = type.indexOf('landscape-secondary') !== -1 ? -1 : 1;
+    const az = g.z * orientSign * NOD_DOWN_SIGN;
+
+    let note = '';
+    let delta = null;
+
+    if (!calibrated) {
+      baselineAx = g.x;
+      baselineAy = g.y;
+      baselineAz = az;
+      calibrated = true;
+      armed = true;
+      note = 'calibrated';
+    } else {
+      delta = az - baselineAz;
+      if (!armed) {
+        if (Math.abs(delta) < DELTA_NEUTRAL) {
+          armed = true;
+          note = 'rearmed';
+        }
+      } else if (delta > DELTA_TRIGGER) {
+        note = 'trigger:correct';
+        nextCard('correct');
+      } else if (delta < -DELTA_TRIGGER) {
+        note = 'trigger:pass';
+        nextCard('pass');
+      }
+    }
+
+    if (motionLog.length < 5000) {
+      motionLog.push({
+        t: Math.round(performance.now() - motionLogStartTime),
+        gx: round3(g.x), gy: round3(g.y), gz: round3(g.z),
+        type: type,
+        deltaX: baselineAx === null ? 0 : round3(g.x - baselineAx),
+        deltaY: baselineAy === null ? 0 : round3(g.y - baselineAy),
+        deltaZ: delta === null ? 0 : round3(delta),
+        armed: armed,
+        note: note
+      });
+    }
+
+    if (debugEnabled) {
+      const overlay = document.getElementById('debug-overlay');
+      overlay.classList.add('show');
+      overlay.textContent =
+        'type: ' + type + '\n' +
+        'raw x/y/z: ' + g.x.toFixed(2) + ' / ' + g.y.toFixed(2) + ' / ' + g.z.toFixed(2) + '\n' +
+        'baseline z: ' + (baselineAz === null ? '-' : baselineAz.toFixed(2)) + '\n' +
+        'delta: ' + (delta === null ? '-' : delta.toFixed(2)) + '\n' +
+        'armed: ' + armed + (note ? ' [' + note + ']' : '') + '\n' +
+        'trigger/neutral: ' + DELTA_TRIGGER + ' / ' + DELTA_NEUTRAL;
+    }
+  }
+
+  // ---------- TAP FALLBACK ----------
+  document.getElementById('tap-correct').addEventListener('click', () => nextCard('correct'));
+  document.getElementById('tap-pass').addEventListener('click', () => nextCard('pass'));
+
+  // ---------- END ROUND ----------
+  function endRound() {
+    if (!roundActive) {
+      logEvent('endRound-ignored-already-inactive');
+      return; // already ended once — never let a stray second call re-show results
+    }
+    roundActive = false;
+    logEvent('endRound');
+    clearInterval(timerInterval);
+    detachMotionListener();
+    unlockOrientation();
+    try {
+      renderResults();
+    } catch (err) {
+      // Even if results rendering fails for some reason, still show the
+      // screen rather than leaving the player stuck on the game view.
+    }
+    showScreen('screen-over');
+  }
+
+  function renderResults() {
+    const correctCount = roundLog.filter(r => r.result === 'correct').length;
+    const totalCount = roundLog.length;
+    document.getElementById('over-score-label').textContent =
+      totalCount === 0 ? 'No words flipped this round' : `${correctCount} correct out of ${totalCount}`;
+
+    const list = document.getElementById('results-list');
+    list.innerHTML = '';
+
+    if (totalCount === 0) {
+      list.innerHTML = '<p class="results-empty">Nothing flipped — try tilting further next time.</p>';
+      return;
+    }
+
+    roundLog.forEach(entry => {
+      const row = document.createElement('div');
+      row.className = 'result-row ' + (entry.result === 'correct' ? 'result-correct' : 'result-pass');
+      const word = document.createElement('span');
+      word.textContent = entry.word;
+      const icon = document.createElement('span');
+      icon.className = 'result-icon';
+      icon.textContent = entry.result === 'correct' ? '✓' : '✕';
+      row.appendChild(word);
+      row.appendChild(icon);
+      list.appendChild(row);
+    });
+  }
+
+  document.getElementById('btn-play-again').addEventListener('click', () => beginCountdown());
+  document.getElementById('btn-change-category').addEventListener('click', () => showScreen('screen-home'));
+
+  document.getElementById('btn-download-diagnostics').addEventListener('click', () => {
+    const payload = {
+      appVersion: APP_VERSION,
+      downloadedAt: new Date().toISOString(),
+      userAgent: navigator.userAgent,
+      screen: { width: window.screen.width, height: window.screen.height, dpr: window.devicePixelRatio },
+      orientationType: (screen.orientation && screen.orientation.type) || null,
+      category: currentCategory ? currentCategory.id : null,
+      tiltConfig: { DELTA_TRIGGER, DELTA_NEUTRAL, NOD_DOWN_SIGN },
+      roundResults: roundLog,
+      motionSampleCount: motionLog.length,
+      motionLog: motionLog,
+      eventLog: eventLog
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'headsup-diagnostics-' + Date.now() + '.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  });
+
+  showScreen('screen-home');
+})();
