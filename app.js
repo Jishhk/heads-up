@@ -1,11 +1,12 @@
 (() => {
-  const APP_VERSION = 'v6';
+  const APP_VERSION = 'v7';
   const ROUND_SECONDS = 60;
   const DELTA_TRIGGER = 5.0;  // m/s^2 change from baseline to trigger — derived from real device data
   const DELTA_NEUTRAL = 2.5;  // m/s^2 — must return within this band before re-arming
+  const MIN_TRIGGER_INTERVAL_MS = 500; // debounce — real data showed follow-through/rebound firing a second flip within ~100-200ms
   const SESSION_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours
   const SESSION_KEY = 'headsup_session_v1';
-  const NOD_DOWN_SIGN = 1; // flip to -1 if a downward nod ever registers as pass instead of correct
+  const NOD_DOWN_SIGN = -1; // flipped based on your report that direction was backwards
 
   let debugEnabled = false;
 
@@ -186,17 +187,32 @@
   document.getElementById('btn-start-round').addEventListener('click', () => {
     if (startTapped) return; // the log showed a double-tap can fire two overlapping lock attempts
     startTapped = true;
-    tryEnterFullscreen(); // best-effort, must be called from a direct user gesture
-    ensureAudioContext(); // must also be unlocked from a direct user gesture
-    // Orientation lock (and the fullscreen it depends on) needs a beat to
-    // actually engage on Android Chrome before attempting it.
-    setTimeout(() => {
+    ensureAudioContext(); // must be unlocked from a direct user gesture
+
+    let resolved = false;
+    function proceedOnce() {
+      if (resolved) return;
+      resolved = true;
       if (needsExplicitPermission()) {
         showScreen('screen-permission');
       } else {
         lockLandscapeThenProceed();
       }
-    }, 150);
+    }
+
+    // Safety net: if fullscreen/orientation-lock never settles for some
+    // reason, don't leave the player stuck staring at the Start button —
+    // this is what previously required an unrelated tap (like exiting
+    // fullscreen) to un-stick.
+    const stuckTimeout = setTimeout(() => {
+      logEvent('startSequence', 'timed out — forcing fallback');
+      proceedOnce();
+    }, 4000);
+
+    enterFullscreenForStart().then(() => {
+      clearTimeout(stuckTimeout);
+      proceedOnce();
+    });
   });
 
   document.getElementById('btn-back-from-ready').addEventListener('click', () => {
@@ -222,6 +238,23 @@
 
   // ---------- FULLSCREEN ----------
   const fsBtn = document.getElementById('btn-fullscreen');
+
+  // Used only by the Start flow — waits for fullscreen to actually settle
+  // (success or failure) instead of guessing with a fixed delay, which was
+  // the root cause of the lock/Start sequence occasionally getting stuck.
+  function enterFullscreenForStart() {
+    const el = document.documentElement;
+    const request = el.requestFullscreen || el.webkitRequestFullscreen ||
+                     el.mozRequestFullScreen || el.msRequestFullscreen;
+    if (!request || document.fullscreenElement) {
+      return Promise.resolve();
+    }
+    const result = request.call(el);
+    if (result && typeof result.then === 'function') {
+      return result.then(() => {}).catch(() => {});
+    }
+    return new Promise(resolve => setTimeout(resolve, 200));
+  }
 
   function tryEnterFullscreen() {
     const el = document.documentElement;
@@ -332,7 +365,7 @@
     orientationWasLocked = false;
   }
 
-// ---------- COUNTDOWN ----------
+  // ---------- COUNTDOWN ----------
   function beginCountdown() {
     showScreen('screen-countdown');
     let n = 3;
@@ -468,6 +501,7 @@
   let baselineAy = null;
   let baselineAz = null;
   let motionLogStartTime = null;
+  let lastTriggerTime = -Infinity;
 
   function attachMotionListener() {
     if (orientationHandlerAttached) return;
@@ -476,6 +510,7 @@
     baselineAy = null;
     baselineAz = null;
     motionLogStartTime = performance.now();
+    lastTriggerTime = -Infinity;
     window.addEventListener('devicemotion', onMotion);
     orientationHandlerAttached = true;
   }
@@ -513,16 +548,24 @@
       note = 'calibrated';
     } else {
       delta = az - baselineAz;
+      const now = performance.now();
+      const debounceOk = (now - lastTriggerTime) >= MIN_TRIGGER_INTERVAL_MS;
       if (!armed) {
         if (Math.abs(delta) < DELTA_NEUTRAL) {
           armed = true;
           note = 'rearmed';
         }
+      } else if (!debounceOk) {
+        // amplitude says it would trigger, but too soon after the last one —
+        // almost always the same physical nod's follow-through/rebound
+        note = 'debounced';
       } else if (delta > DELTA_TRIGGER) {
         note = 'trigger:correct';
+        lastTriggerTime = now;
         nextCard('correct');
       } else if (delta < -DELTA_TRIGGER) {
         note = 'trigger:pass';
+        lastTriggerTime = now;
         nextCard('pass');
       }
     }
