@@ -17,6 +17,8 @@
   let currentCategory = null;
   let deck = [];
   let deckIndex = 0;
+  let currentWord = null;
+  let roundLog = []; // { word, result: 'correct' | 'pass' }
   let timerInterval = null;
   let secondsLeft = ROUND_SECONDS;
   let armed = true; // whether a new trigger is allowed (hysteresis gate)
@@ -55,7 +57,6 @@
   function selectCategory(cat) {
     currentCategory = cat;
     document.getElementById('ready-category-label').textContent = cat.name;
-    document.getElementById('over-category-label').textContent = cat.name;
     document.documentElement.style.setProperty('--accent', cat.accent);
     showScreen('screen-ready');
   }
@@ -94,16 +95,27 @@
 
   function tryEnterFullscreen() {
     const el = document.documentElement;
-    const request = el.requestFullscreen || el.webkitRequestFullscreen;
-    if (request && !document.fullscreenElement) {
-      request.call(el).catch(() => {});
+    const request = el.requestFullscreen || el.webkitRequestFullscreen ||
+                     el.mozRequestFullScreen || el.msRequestFullscreen;
+    if (!request) {
+      alert('This browser does not support the Fullscreen API. Try "Add to Home screen" instead for a chrome-less launch.');
+      return;
+    }
+    if (document.fullscreenElement) return;
+    const result = request.call(el);
+    if (result && typeof result.catch === 'function') {
+      result.catch(err => {
+        alert('Fullscreen request was blocked: ' + (err && err.message ? err.message : err));
+      });
     }
   }
 
   function exitFullscreen() {
-    const exit = document.exitFullscreen || document.webkitExitFullscreen;
+    const exit = document.exitFullscreen || document.webkitExitFullscreen ||
+                 document.mozCancelFullScreen || document.msExitFullscreen;
     if (exit && document.fullscreenElement) {
-      exit.call(document).catch(() => {});
+      const result = exit.call(document);
+      if (result && typeof result.catch === 'function') result.catch(() => {});
     }
   }
 
@@ -154,8 +166,11 @@
     deckIndex = 0;
     secondsLeft = ROUND_SECONDS;
     armed = true;
+    roundLog = [];
 
-    document.getElementById('screen-game').style.background = shade(currentCategory.accent, -85);
+    const gameScreen = document.getElementById('screen-game');
+    gameScreen.classList.add('force-landscape');
+    gameScreen.style.background = shade(currentCategory.accent, -85);
     document.getElementById('timer-bar-fill').style.background = currentCategory.accent;
     document.documentElement.style.setProperty('--accent', currentCategory.accent);
 
@@ -187,7 +202,8 @@
       deck = shuffledDeck(currentCategory.words);
       deckIndex = 0;
     }
-    document.getElementById('game-word').textContent = deck[deckIndex];
+    currentWord = deck[deckIndex];
+    document.getElementById('game-word').textContent = currentWord;
     deckIndex += 1;
   }
 
@@ -203,6 +219,7 @@
   function nextCard(kind) {
     if (!armed || secondsLeft <= 0) return;
     armed = false;
+    roundLog.push({ word: currentWord, result: kind });
     flash(kind);
     showWord();
   }
@@ -218,34 +235,16 @@
     orientationHandlerAttached = false;
   }
 
-  function getScreenAngle() {
-    if (screen.orientation && typeof screen.orientation.angle === 'number') {
-      return screen.orientation.angle;
-    }
-    if (typeof window.orientation === 'number') {
-      return window.orientation; // older Safari-style API, still seen on some Android WebViews
-    }
-    return 0;
-  }
-
-  // Returns a single "forward tilt" angle (~90 = phone vertical/neutral,
-  // trending toward 0 = tilted forward/down, toward 180 = tilted back/up).
-  // Tuned for standard portrait and both landscape orientations. Upside-down
-  // portrait (screen angle 180) falls back to the portrait formula untuned —
-  // an edge case not worth the risk of shipping unverified trig for.
-  function computeTilt(beta, gamma, angle) {
-    switch (angle) {
-      case 90:   return 90 - gamma;   // landscape, rotated left
-      case -90:
-      case 270:  return 90 + gamma;   // landscape, rotated right
-      default:   return beta;         // standard portrait (and upside-down portrait, untuned)
-    }
-  }
-
+  // The phone is always sensed as held in a natural vertical (portrait)
+  // grip against the forehead — this is the only orientation we read tilt
+  // from, regardless of what the game screen looks like visually (the
+  // "landscape" presentation is a pure CSS rotation, see .force-landscape).
+  // Mapping is inverted from the first version based on real-device
+  // testing: tilting the top of the phone DOWN now registers as pass,
+  // tilting it UP/back registers as correct.
   function onOrientation(e) {
-    if (e.beta === null || e.beta === undefined || e.gamma === null || e.gamma === undefined) return;
-    const angle = getScreenAngle();
-    const tilt = computeTilt(e.beta, e.gamma, angle);
+    if (e.beta === null || e.beta === undefined) return;
+    const tilt = e.beta;
 
     if (!armed) {
       if (tilt > NEUTRAL_LOW && tilt < NEUTRAL_HIGH) {
@@ -255,9 +254,9 @@
     }
 
     if (tilt < TILT_DOWN_THRESHOLD) {
-      nextCard('correct');
-    } else if (tilt > TILT_UP_THRESHOLD) {
       nextCard('pass');
+    } else if (tilt > TILT_UP_THRESHOLD) {
+      nextCard('correct');
     }
   }
 
@@ -269,7 +268,37 @@
   function endRound() {
     clearInterval(timerInterval);
     detachOrientationListener();
+    document.getElementById('screen-game').classList.remove('force-landscape');
+    renderResults();
     showScreen('screen-over');
+  }
+
+  function renderResults() {
+    const correctCount = roundLog.filter(r => r.result === 'correct').length;
+    const totalCount = roundLog.length;
+    document.getElementById('over-score-label').textContent =
+      totalCount === 0 ? 'No words flipped this round' : `${correctCount} correct out of ${totalCount}`;
+
+    const list = document.getElementById('results-list');
+    list.innerHTML = '';
+
+    if (totalCount === 0) {
+      list.innerHTML = '<p class="results-empty">Nothing flipped — try tilting further next time.</p>';
+      return;
+    }
+
+    roundLog.forEach(entry => {
+      const row = document.createElement('div');
+      row.className = 'result-row ' + (entry.result === 'correct' ? 'result-correct' : 'result-pass');
+      const word = document.createElement('span');
+      word.textContent = entry.word;
+      const icon = document.createElement('span');
+      icon.className = 'result-icon';
+      icon.textContent = entry.result === 'correct' ? '✓' : '✕';
+      row.appendChild(word);
+      row.appendChild(icon);
+      list.appendChild(row);
+    });
   }
 
   document.getElementById('btn-play-again').addEventListener('click', () => beginCountdown());
