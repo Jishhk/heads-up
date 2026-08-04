@@ -4,13 +4,7 @@ const CATEGORIES = [
     name: "Movies & TV",
     accent: "#2E7DFF",
     words: [
-      "Grease","Saturday Night Fever","E.T.","The Golden Girls","Dirty Dancing",
-      "Top Gun","Cheers","Full House","Jurassic Park","Friends","The Matrix",
-      "Titanic","The Sopranos","SpongeBob SquarePants","Shrek","The Office",
-      "Twilight","Avatar","Breaking Bad","Game of Thrones","Stranger Things",
-      "Euphoria","Squid Game","Bridgerton","The Bear","Barbie","Ted Lasso",
-      "Wednesday","Encanto","MASH","Seinfeld","The Fresh Prince of Bel-Air",
-      "Toy Story","Frozen","Rick and Morty","The Wire","Schitt's Creek"
+      "Grease", "Saturday Night Fever", "E.T.", "The Golden Girls", "Dirty Dancing", "Top Gun", "Cheers", "Full House", "Jurassic Park", "Friends", "The Matrix", "Titanic", "The Sopranos", "SpongeBob SquarePants", "Shrek", "The Office", "Twilight", "Avatar", "Breaking Bad", "Game of Thrones", "Stranger Things", "Euphoria", "Squid Game", "Bridgerton", "The Bear", "Barbie", "Ted Lasso", "Wednesday", "Encanto", "MASH", "Seinfeld", "The Fresh Prince of Bel-Air", "Toy Story", "Frozen", "Rick and Morty", "The Wire", "Schitt's Creek", "I Love Lucy", "The Twilight Zone", "Star Trek", "Star Wars", "The Godfather", "Rocky", "Back to the Future", "The Wizard of Oz", "Gone with the Wind", "Casablanca", "Jaws", "E.R.", "Happy Days", "The Brady Bunch", "All in the Family", "Dallas", "Dynasty", "Miami Vice", "The A-Team", "Knight Rider", "Beverly Hills 90210", "Melrose Place", "The X-Files", "Buffy the Vampire Slayer", "Sex and the City", "Will & Grace", "The West Wing", "Malcolm in the Middle", "That '70s Show", "Gilmore Girls", "American Idol", "Survivor", "The Bachelor", "Grey's Anatomy", "Lost", "Heroes", "24", "Prison Break", "How I Met Your Mother", "The Big Bang Theory", "Modern Family", "Glee", "Pretty Little Liars", "The Vampire Diaries", "Once Upon a Time", "Parks and Recreation", "Community", "Arrested Development", "Downton Abbey", "House of Cards", "Orange Is the New Black", "The Crown", "Black Mirror", "Ozark", "Better Call Saul", "Fargo", "Yellowstone", "The Mandalorian", "WandaVision", "Loki", "Abbott Elementary", "Only Murders in the Building", "The Last of Us", "House of the Dragon", "Succession", "The White Lotus", "Everything Everywhere All at Once", "Top Gun: Maverick", "Home Alone", "Ghostbusters", "Indiana Jones", "The Lion King", "Beauty and the Beast", "Aladdin", "The Little Mermaid", "Finding Nemo", "The Incredibles", "Spider-Man", "Batman", "Avengers", "Harry Potter"
     ]
   },
   {
@@ -18,12 +12,7 @@ const CATEGORIES = [
     name: "Music Artists",
     accent: "#FF2E9A",
     words: [
-      "Frank Sinatra","Elvis Presley","The Beatles","The Rolling Stones","ABBA",
-      "Fleetwood Mac","Michael Jackson","Madonna","Whitney Houston","Prince",
-      "Nirvana","Tupac","Notorious B.I.G.","Backstreet Boys","Britney Spears",
-      "Eminem","Beyoncé","Taylor Swift","Kanye West","Rihanna","Ariana Grande",
-      "Billie Eilish","Drake","BTS","Olivia Rodrigo","Doja Cat","The Weeknd",
-      "Bad Bunny","Dolly Parton","Bob Dylan","Bruce Springsteen","Queen","Journey"
+      "Frank Sinatra", "Elvis Presley", "The Beatles", "The Rolling Stones", "ABBA", "Fleetwood Mac", "Michael Jackson", "Madonna", "Whitney Houston", "Prince", "Nirvana", "Tupac", "Notorious B.I.G.", "Backstreet Boys", "Britney Spears", "Eminem", "Beyoncé", "Taylor Swift", "Kanye West", "Rihanna", "Ariana Grande", "Billie Eilish", "Drake", "BTS", "Olivia Rodrigo", "Doja Cat", "The Weeknd", "Bad Bunny", "Dolly Parton", "Bob Dylan", "Bruce Springsteen", "Queen", "Journey", "Aretha Franklin", "Stevie Wonder", "Marvin Gaye", "The Supremes", "The Temptations", "Diana Ross", "James Brown", "Chuck Berry", "Little Richard", "Buddy Holly", "The Beach Boys", "The Who", "Led Zeppelin", "Pink Floyd", "The Eagles", "Billy Joel", "Elton John", "David Bowie", "Donna Summer", "Earth, Wind & Fire", "Blondie", "The Police", "U2", "Duran Duran", "Culture Club", "Wham!", "George Michael", "Cyndi Lauper", "Bon Jovi", "Guns N' Roses", "Metallica", "Def Leppard", "Whitesnake", "Run-D.M.C.", "Public Enemy", "LL Cool J", "Salt-N-Pepa", "TLC", "Boyz II Men", "Mariah Carey", "Celine Dion", "Alanis Morissette", "No Doubt", "Spice Girls", "Destiny's Child", "NSYNC", "Christina Aguilera", "Jennifer Lopez", "Usher", "OutKast", "Missy Elliott", "Linkin Park", "Coldplay", "Green Day", "Blink-182", "My Chemical Romance", "Fall Out Boy", "Panic! at the Disco", "Lady Gaga", "Katy Perry", "Bruno Mars", "Adele", "Ed Sheeran", "Justin Bieber", "Selena Gomez", "One Direction", "Nicki Minaj", "Cardi B", "Post Malone", "Travis Scott", "Lil Nas X", "Harry Styles", "Dua Lipa", "SZA", "Frank Ocean", "Kendrick Lamar", "J. Cole", "Chappell Roan", "Sabrina Carpenter", "Zach Bryan"
     ]
   },
   {
@@ -31,12 +20,7 @@ const CATEGORIES = [
     name: "Slang & Sayings",
     accent: "#B6FF2E",
     words: [
-      "Groovy","Far Out","Radical","Gnarly","Talk to the Hand","As If",
-      "My Bad","Bling","Bae","YOLO","On Fleek","Lit","Extra","Salty",
-      "Ghosting","Simp","No Cap","Rizz","Bussin'","Slay","Vibe Check",
-      "Main Character Energy","It's Giving...","Sus","Skibidi","Delulu",
-      "Boujee","Basic","Ok Boomer","Adulting","FOMO","Netflix and Chill",
-      "Throw Shade","Woke","Glow Up","Yeet"
+      "Groovy", "Far Out", "Radical", "Gnarly", "Talk to the Hand", "As If", "My Bad", "Bling", "Bae", "YOLO", "On Fleek", "Lit", "Extra", "Salty", "Ghosting", "Simp", "No Cap", "Rizz", "Bussin'", "Slay", "Vibe Check", "Main Character Energy", "It's Giving...", "Sus", "Skibidi", "Delulu", "Boujee", "Basic", "Ok Boomer", "Adulting", "FOMO", "Netflix and Chill", "Throw Shade", "Woke", "Glow Up", "Yeet", "Chillax", "Wig", "Snatched", "Periodt", "Left on Read", "Deadass", "Lowkey", "Highkey", "Cap", "Bet", "Fam", "Squad Goals", "Savage", "Tea", "Shade", "Receipts", "Clout", "Flex", "Drip", "Cheugy", "Bougie", "Karen", "Stan", "Ship", "OTP", "IRL", "TBH", "Copacetic", "The Bee's Knees", "Cat's Pajamas", "23 Skidoo", "Hunky-Dory", "Right On", "Dig It", "Boss", "Sock It To Me", "Outta Sight", "Peace Out", "Bogus", "Tubular", "Whatever", "Da Bomb", "All That", "Fresh", "Def", "Wack", "Homeboy", "Word Up", "Fly", "Crunk", "Jump the Shark", "Photobomb", "Selfie", "On Point", "Turnt", "Squad", "Doomscrolling", "Touch Grass", "Big Mood", "Say Less", "Understood the Assignment", "Rent Free", "Main Character", "POV", "NPC Energy", "Girl Dinner", "Brain Rot", "Gyat", "Aura", "Mewing", "Sigma", "Ohio", "Fanum Tax", "Cringe", "Sksksk", "And I Oop", "Extra AF", "Yeeted", "Snack", "Thicc", "Hangry", "Adorbs", "Amazeballs", "Bromance", "Frenemy", "Chillaxing"
     ]
   },
   {
@@ -44,14 +28,7 @@ const CATEGORIES = [
     name: "Famous People",
     accent: "#FFA52E",
     words: [
-      "Muhammad Ali","Oprah Winfrey","Walt Disney","Marilyn Monroe",
-      "Albert Einstein","Martin Luther King Jr.","Betty White","Mr. Rogers",
-      "Steve Jobs","Michael Jordan","Serena Williams","Dwayne Johnson",
-      "Elon Musk","Zendaya","Tom Hanks","Meryl Streep","Keanu Reeves",
-      "David Attenborough","RuPaul","Greta Thunberg","LeBron James",
-      "Simone Biles","MrBeast","Tom Cruise","Julia Roberts",
-      "Denzel Washington","Whoopi Goldberg","Robin Williams","Bob Ross",
-      "Julia Child"
+      "Muhammad Ali", "Oprah Winfrey", "Walt Disney", "Marilyn Monroe", "Albert Einstein", "Martin Luther King Jr.", "Betty White", "Mr. Rogers", "Steve Jobs", "Michael Jordan", "Serena Williams", "Dwayne Johnson", "Elon Musk", "Zendaya", "Tom Hanks", "Meryl Streep", "Keanu Reeves", "David Attenborough", "RuPaul", "Greta Thunberg", "LeBron James", "Simone Biles", "MrBeast", "Tom Cruise", "Julia Roberts", "Denzel Washington", "Whoopi Goldberg", "Robin Williams", "Bob Ross", "Julia Child", "Abraham Lincoln", "George Washington", "Amelia Earhart", "Rosa Parks", "Helen Keller", "Thomas Edison", "Nikola Tesla", "Mark Twain", "Charlie Chaplin", "Babe Ruth", "Jackie Robinson", "John F. Kennedy", "Jacqueline Kennedy Onassis", "Neil Armstrong", "Frida Kahlo", "Pablo Picasso", "Andy Warhol", "Princess Diana", "Queen Elizabeth II", "Nelson Mandela", "Mahatma Gandhi", "Anne Frank", "Winston Churchill", "Marie Curie", "Charles Darwin", "Leonardo da Vinci", "William Shakespeare", "John Lennon", "Bob Marley", "Vince Lombardi", "Johnny Carson", "Walter Cronkite", "Fred Astaire", "Ginger Rogers", "Judy Garland", "James Dean", "Audrey Hepburn", "Grace Kelly", "Sean Connery", "Clint Eastwood", "Harrison Ford", "Sylvester Stallone", "Arnold Schwarzenegger", "Eddie Murphy", "Jim Carrey", "Will Smith", "Halle Berry", "Angelina Jolie", "Brad Pitt", "George Clooney", "Sandra Bullock", "Reese Witherspoon", "Jennifer Aniston", "Jennifer Lawrence", "Emma Watson", "Chris Hemsworth", "Robert Downey Jr.", "Scarlett Johansson", "Ryan Reynolds", "Kevin Hart", "Amy Poehler", "Tina Fey", "Ellen DeGeneres", "Jimmy Fallon", "Trevor Noah", "Barack Obama", "Michelle Obama", "Malala Yousafzai", "Stephen Hawking", "Bill Gates", "Jeff Bezos", "Mark Zuckerberg", "Kim Kardashian", "Kylie Jenner", "Cristiano Ronaldo", "Lionel Messi", "Usain Bolt", "Tiger Woods", "Michael Phelps", "Anderson Cooper", "Anthony Bourdain", "Fred Rogers"
     ]
   },
   {
@@ -59,13 +36,7 @@ const CATEGORIES = [
     name: "Tech & Gadgets",
     accent: "#2EFFE0",
     words: [
-      "Rotary Phone","Typewriter","VCR","Walkman","Boombox","Pager",
-      "Floppy Disk","Dial-Up Internet","Game Boy","Polaroid Camera",
-      "Fax Machine","Answering Machine","Palm Pilot","Nokia Brick Phone",
-      "iPod","Flip Phone","DVD Player","Tamagotchi","Blackberry","MySpace",
-      "AOL Instant Messenger","iPhone","Bluetooth Earbuds","Smartwatch",
-      "Alexa","Zoom","TikTok","AirPods","QR Code","Chatbot","Drone",
-      "3D Printer","Ring Doorbell","Electric Scooter","VR Headset"
+      "Rotary Phone", "Typewriter", "VCR", "Walkman", "Boombox", "Pager", "Floppy Disk", "Dial-Up Internet", "Game Boy", "Polaroid Camera", "Fax Machine", "Answering Machine", "Palm Pilot", "Nokia Brick Phone", "iPod", "Flip Phone", "DVD Player", "Tamagotchi", "Blackberry", "MySpace", "AOL Instant Messenger", "iPhone", "Bluetooth Earbuds", "Smartwatch", "Alexa", "Zoom", "TikTok", "AirPods", "QR Code", "Chatbot", "Drone", "3D Printer", "Ring Doorbell", "Electric Scooter", "VR Headset", "Cassette Tape", "8-Track Player", "Betamax", "Laserdisc", "Atari", "Nintendo Entertainment System", "Sega Genesis", "Commodore 64", "IBM PC", "Apple II", "Macintosh", "Windows 95", "Netscape Navigator", "Napster", "LimeWire", "Discman", "MiniDisc", "Zip Drive", "Palm Treo", "Sidekick", "iPod Nano", "iPod Shuffle", "MP3 Player", "Razr Flip Phone", "Motorola StarTAC", "Beeper", "Car Phone", "Teletype", "Overhead Projector", "Slide Projector", "Mimeograph", "Rolodex", "Photocopier", "GPS Device", "TomTom", "MapQuest Printout", "Encyclopedia Set", "Card Catalog", "Microfiche", "VHS Tape", "Camcorder", "Disposable Camera", "35mm Film", "Chat Room", "Dial-Up Modem", "Ethernet Cable", "CD-ROM", "Jump Drive", "USB Stick", "External Hard Drive", "Smart TV", "Streaming Stick", "Chromecast", "Wireless Router", "Smart Speaker", "Fitness Tracker", "Foldable Phone", "E-Reader", "Kindle", "Tablet", "Selfie Stick", "Ring Light", "Webcam", "Smart Thermostat", "Robot Vacuum", "Air Fryer", "Instant Pot", "Crypto Wallet", "NFT", "ChatGPT", "AI Assistant", "Self-Driving Car", "Smart Glasses", "Segway"
     ]
   },
   {
@@ -73,14 +44,7 @@ const CATEGORIES = [
     name: "After Dark",
     accent: "#FF3B3B",
     words: [
-      "One Night Stand","Netflix and Chill","Booty Call",
-      "Friends with Benefits","Walk of Shame","Sexting","Hickey",
-      "Spring Break","Bachelorette Party","Blind Date","Speed Dating",
-      "Tinder","Open Relationship","Love Triangle","Skinny Dipping",
-      "Truth or Dare","Strip Poker","Spin the Bottle","Honeymoon Suite",
-      "Lingerie","Bar Hookup","Flirting","Wingman","Sugar Daddy","Cougar",
-      "Player","Casanova","Romance Novel","Rebound","Situationship",
-      "Friend Zone","Cuffing Season","Thirst Trap"
+      "One Night Stand", "Netflix and Chill", "Booty Call", "Friends with Benefits", "Walk of Shame", "Sexting", "Hickey", "Spring Break", "Bachelorette Party", "Blind Date", "Speed Dating", "Tinder", "Open Relationship", "Love Triangle", "Skinny Dipping", "Truth or Dare", "Strip Poker", "Spin the Bottle", "Honeymoon Suite", "Lingerie", "Bar Hookup", "Flirting", "Wingman", "Sugar Daddy", "Cougar", "Player", "Casanova", "Romance Novel", "Rebound", "Situationship", "Friend Zone", "Cuffing Season", "Thirst Trap", "First Base", "Second Base", "Third Base", "Home Run", "Make Out Session", "Slow Dance", "Mistletoe Kiss", "Love Bite", "Pillow Talk", "Morning After", "Bedroom Eyes", "Sultry Look", "Smooth Talker", "Match Made in Heaven", "Soulmate", "Love at First Sight", "Chemistry", "Sparks Fly", "Butterflies", "Crush", "Puppy Love", "Forbidden Love", "Guilty Pleasure", "Secret Admirer", "Love Letter", "Valentine's Day", "Candlelit Dinner", "Champagne Toast", "Room Service", "Do Not Disturb Sign", "Hotel Room", "Vegas Wedding", "Elopement", "Prenup", "Divorce Lawyer", "Alimony", "Sugar Baby", "Age Gap Relationship", "Long Distance Relationship", "Late Night Text", "Drunk Text", "Regretful Text", "Hangover", "Walk of Pride", "Fling", "Summer Romance", "Vacation Fling", "Cabana Boy", "Pool Boy", "Beach Body", "Bikini", "Speedo", "Lap Dance", "Bachelor Pad", "Man Cave", "Girls' Night Out", "Guys' Night Out", "Karaoke Bar", "Last Call", "Closing Time", "Designated Driver", "Uber Home", "Text Your Ex", "Ghosted", "Breadcrumbing", "Love Bombing", "Talking Stage", "Soft Launch", "Hard Launch", "DM Slide", "Situationship Anxiety", "Third Wheel"
     ]
-  }
+  },
 ];
