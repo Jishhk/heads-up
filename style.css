@@ -142,6 +142,25 @@ body {
 }
 .reset-link:active { opacity: 0.6; }
 
+.debug-overlay {
+  position: absolute;
+  top: max(50px, calc(env(safe-area-inset-top) + 40px));
+  left: 12px;
+  z-index: 40;
+  margin: 0;
+  background: rgba(0, 0, 0, 0.7);
+  color: #B6FF2E;
+  font-family: monospace;
+  font-size: 11px;
+  line-height: 1.4;
+  padding: 8px 10px;
+  border-radius: 8px;
+  pointer-events: none;
+  white-space: pre;
+  display: none;
+}
+.debug-overlay.show { display: block; }
+
 /* ---------- CENTER / GENERIC SUBSCREENS ---------- */
 .center-wrap {
   flex: 1;
