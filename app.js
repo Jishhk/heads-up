@@ -1,9 +1,11 @@
 (() => {
   const ROUND_SECONDS = 60;
-  const TILT_DOWN_THRESHOLD = 50;   // beta below this = correct
-  const TILT_UP_THRESHOLD = 130;    // beta above this = pass
-  const NEUTRAL_LOW = 70;           // must return inside [NEUTRAL_LOW, NEUTRAL_HIGH]
-  const NEUTRAL_HIGH = 110;         // before another trigger can fire
+  const TILT_DOWN_THRESHOLD = 68;    // beta below this = pass (was 50 — tightened for sensitivity)
+  const TILT_UP_THRESHOLD = 112;     // beta above this = correct (was 130 — tightened for sensitivity)
+  const NEUTRAL_LOW = 80;            // must return inside [NEUTRAL_LOW, NEUTRAL_HIGH]
+  const NEUTRAL_HIGH = 100;          // before another trigger can fire
+  const SESSION_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours
+  const SESSION_KEY = 'headsup_session_v1';
 
   const screens = {};
   document.querySelectorAll('.screen').forEach(el => screens[el.id] = el);
@@ -23,6 +25,56 @@
   let secondsLeft = ROUND_SECONDS;
   let armed = true; // whether a new trigger is allowed (hysteresis gate)
   let orientationHandlerAttached = false;
+
+  // ---------- SESSION / NO-REPEAT TRACKING ----------
+  // Avoids repeating words within a TTL window using localStorage, so
+  // multiple rounds back-to-back (even across closing/reopening the tab)
+  // won't reshow the same words until the window expires or a category's
+  // whole pool has been exhausted, at which point that category resets.
+  let sessionData = loadSession();
+
+  function loadSession() {
+    try {
+      const raw = localStorage.getItem(SESSION_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed.expiresAt === 'number' && parsed.expiresAt > Date.now()) {
+          return parsed;
+        }
+      }
+    } catch (e) { /* localStorage unavailable — fall through to a fresh session */ }
+    return { expiresAt: Date.now() + SESSION_TTL_MS, seen: {} };
+  }
+
+  function saveSession() {
+    try {
+      localStorage.setItem(SESSION_KEY, JSON.stringify(sessionData));
+    } catch (e) { /* storage full or blocked — tracking just won't persist */ }
+  }
+
+  function getSeen(categoryId) {
+    return sessionData.seen[categoryId] || [];
+  }
+
+  function markSeen(categoryId, word) {
+    if (!sessionData.seen[categoryId]) sessionData.seen[categoryId] = [];
+    if (!sessionData.seen[categoryId].includes(word)) {
+      sessionData.seen[categoryId].push(word);
+      saveSession();
+    }
+  }
+
+  function buildDeck(category) {
+    const seen = new Set(getSeen(category.id));
+    let pool = category.words.filter(w => !seen.has(w));
+    if (pool.length === 0) {
+      // whole category exhausted within the TTL window — start a fresh cycle
+      sessionData.seen[category.id] = [];
+      saveSession();
+      pool = category.words.slice();
+    }
+    return shuffledDeck(pool);
+  }
 
   // ---------- HOME: build category grid ----------
   const grid = document.getElementById('category-grid');
@@ -72,6 +124,7 @@
 
   document.getElementById('btn-start-round').addEventListener('click', () => {
     tryEnterFullscreen(); // best-effort, must be called from a direct user gesture
+    ensureAudioContext(); // must also be unlocked from a direct user gesture
     if (needsExplicitPermission()) {
       showScreen('screen-permission');
     } else {
@@ -134,6 +187,31 @@
   document.addEventListener('fullscreenchange', updateFullscreenIcon);
   document.addEventListener('webkitfullscreenchange', updateFullscreenIcon);
 
+  // ---------- AUDIO (countdown beeps, no asset files needed) ----------
+  let audioCtx = null;
+
+  function ensureAudioContext() {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    if (!audioCtx) audioCtx = new AC();
+    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+  }
+
+  function beep(freq, durationMs) {
+    if (!audioCtx) return;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    const now = audioCtx.currentTime;
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.35, now + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + durationMs / 1000);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(now);
+    osc.stop(now + durationMs / 1000 + 0.02);
+  }
+
   // ---------- COUNTDOWN ----------
   function beginCountdown() {
     showScreen('screen-countdown');
@@ -162,7 +240,7 @@
   }
 
   function startRound() {
-    deck = shuffledDeck(currentCategory.words);
+    deck = buildDeck(currentCategory);
     deckIndex = 0;
     secondsLeft = ROUND_SECONDS;
     armed = true;
@@ -195,16 +273,22 @@
     if (secondsLeft <= 10) {
       document.getElementById('timer-bar-fill').style.background = 'var(--pass)';
     }
+    if (secondsLeft > 0 && secondsLeft <= 5) {
+      beep(880, 120);
+    } else if (secondsLeft === 0) {
+      beep(440, 300);
+    }
   }
 
   function showWord() {
     if (deckIndex >= deck.length) {
-      deck = shuffledDeck(currentCategory.words);
+      deck = buildDeck(currentCategory);
       deckIndex = 0;
     }
     currentWord = deck[deckIndex];
     document.getElementById('game-word').textContent = currentWord;
     deckIndex += 1;
+    markSeen(currentCategory.id, currentWord);
   }
 
   function flash(kind) {
@@ -269,7 +353,12 @@
     clearInterval(timerInterval);
     detachOrientationListener();
     document.getElementById('screen-game').classList.remove('force-landscape');
-    renderResults();
+    try {
+      renderResults();
+    } catch (err) {
+      // Even if results rendering fails for some reason, still show the
+      // screen rather than leaving the player stuck on the game view.
+    }
     showScreen('screen-over');
   }
 
