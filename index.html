@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0B0D12">
+<title>Heads Up</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Archivo+Black&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- HOME SCREEN -->
+<section id="screen-home" class="screen active">
+  <div class="home-wrap">
+    <h1 class="logo">HEADS UP</h1>
+    <p class="tagline">Pick a category. Hold phone to your forehead. Tilt to play.</p>
+    <div id="category-grid" class="category-grid"></div>
+  </div>
+</section>
+
+<!-- PERMISSION / ORIENTATION NOTICE -->
+<section id="screen-permission" class="screen">
+  <div class="center-wrap">
+    <h2>Motion access needed</h2>
+    <p class="body-text">This game uses tilt to play. Tap below to allow motion access.</p>
+    <button id="btn-request-permission" class="btn-primary">Enable Tilt</button>
+    <button id="btn-back-from-permission" class="btn-secondary">Back</button>
+  </div>
+</section>
+
+<!-- READY / COUNTDOWN SCREEN -->
+<section id="screen-ready" class="screen">
+  <div class="center-wrap">
+    <p class="ready-category" id="ready-category-label"></p>
+    <h2 class="ready-heading">Hold the phone to your forehead</h2>
+    <p class="body-text">Screen facing your friends. Tilt the top down for correct, tilt it back to pass.</p>
+    <button id="btn-start-round" class="btn-primary">Start (3s)</button>
+    <button id="btn-back-from-ready" class="btn-secondary">Back</button>
+  </div>
+</section>
+
+<!-- COUNTDOWN OVERLAY -->
+<section id="screen-countdown" class="screen">
+  <div class="countdown-number" id="countdown-number">3</div>
+</section>
+
+<!-- GAME SCREEN -->
+<section id="screen-game" class="screen">
+  <div id="game-flash" class="game-flash"></div>
+  <div class="game-top">
+    <div class="timer-bar-track"><div id="timer-bar-fill" class="timer-bar-fill"></div></div>
+    <div id="timer-seconds" class="timer-seconds">60</div>
+  </div>
+  <div class="game-word-wrap">
+    <div id="game-word" class="game-word">Word</div>
+  </div>
+  <div class="game-hints">
+    <div class="hint hint-pass">▲ tilt up = pass</div>
+    <div class="hint hint-correct">▼ tilt down = correct</div>
+  </div>
+  <div class="game-tap-zones">
+    <button id="tap-pass" class="tap-zone tap-zone-pass" aria-label="Pass"></button>
+    <button id="tap-correct" class="tap-zone tap-zone-correct" aria-label="Correct"></button>
+  </div>
+</section>
+
+<!-- ROUND OVER SCREEN -->
+<section id="screen-over" class="screen">
+  <div class="center-wrap">
+    <h2 class="over-heading">Time's up!</h2>
+    <p class="body-text" id="over-category-label"></p>
+    <button id="btn-play-again" class="btn-primary">Play Again</button>
+    <button id="btn-change-category" class="btn-secondary">Change Category</button>
+  </div>
+</section>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
