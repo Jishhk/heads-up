@@ -24,6 +24,14 @@
 
   // ---------- HOME: build category grid ----------
   const grid = document.getElementById('category-grid');
+
+  if (typeof CATEGORIES === 'undefined' || !Array.isArray(CATEGORIES) || CATEGORIES.length === 0) {
+    grid.innerHTML = '<p style="color:#FF4D5E;grid-column:1/-1;font-size:14px;">' +
+      'Couldn\'t load categories — data.js is missing or failed to load. ' +
+      'Check that data.js sits in the repo root alongside index.html.</p>';
+    return;
+  }
+
   CATEGORIES.forEach(cat => {
     const btn = document.createElement('button');
     btn.className = 'category-card';
@@ -62,6 +70,7 @@
   }
 
   document.getElementById('btn-start-round').addEventListener('click', () => {
+    tryEnterFullscreen(); // best-effort, must be called from a direct user gesture
     if (needsExplicitPermission()) {
       showScreen('screen-permission');
     } else {
@@ -79,6 +88,39 @@
       }
     }).catch(() => beginCountdown());
   });
+
+  // ---------- FULLSCREEN ----------
+  const fsBtn = document.getElementById('btn-fullscreen');
+
+  function tryEnterFullscreen() {
+    const el = document.documentElement;
+    const request = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (request && !document.fullscreenElement) {
+      request.call(el).catch(() => {});
+    }
+  }
+
+  function exitFullscreen() {
+    const exit = document.exitFullscreen || document.webkitExitFullscreen;
+    if (exit && document.fullscreenElement) {
+      exit.call(document).catch(() => {});
+    }
+  }
+
+  function updateFullscreenIcon() {
+    fsBtn.textContent = document.fullscreenElement ? '⤡' : '⛶';
+  }
+
+  fsBtn.addEventListener('click', () => {
+    if (document.fullscreenElement) {
+      exitFullscreen();
+    } else {
+      tryEnterFullscreen();
+    }
+  });
+
+  document.addEventListener('fullscreenchange', updateFullscreenIcon);
+  document.addEventListener('webkitfullscreenchange', updateFullscreenIcon);
 
   // ---------- COUNTDOWN ----------
   function beginCountdown() {
@@ -176,20 +218,45 @@
     orientationHandlerAttached = false;
   }
 
+  function getScreenAngle() {
+    if (screen.orientation && typeof screen.orientation.angle === 'number') {
+      return screen.orientation.angle;
+    }
+    if (typeof window.orientation === 'number') {
+      return window.orientation; // older Safari-style API, still seen on some Android WebViews
+    }
+    return 0;
+  }
+
+  // Returns a single "forward tilt" angle (~90 = phone vertical/neutral,
+  // trending toward 0 = tilted forward/down, toward 180 = tilted back/up).
+  // Tuned for standard portrait and both landscape orientations. Upside-down
+  // portrait (screen angle 180) falls back to the portrait formula untuned —
+  // an edge case not worth the risk of shipping unverified trig for.
+  function computeTilt(beta, gamma, angle) {
+    switch (angle) {
+      case 90:   return 90 - gamma;   // landscape, rotated left
+      case -90:
+      case 270:  return 90 + gamma;   // landscape, rotated right
+      default:   return beta;         // standard portrait (and upside-down portrait, untuned)
+    }
+  }
+
   function onOrientation(e) {
-    if (e.beta === null || e.beta === undefined) return;
-    const beta = e.beta; // -180..180, ~90 when phone held upright/vertical
+    if (e.beta === null || e.beta === undefined || e.gamma === null || e.gamma === undefined) return;
+    const angle = getScreenAngle();
+    const tilt = computeTilt(e.beta, e.gamma, angle);
 
     if (!armed) {
-      if (beta > NEUTRAL_LOW && beta < NEUTRAL_HIGH) {
+      if (tilt > NEUTRAL_LOW && tilt < NEUTRAL_HIGH) {
         armed = true;
       }
       return;
     }
 
-    if (beta < TILT_DOWN_THRESHOLD) {
+    if (tilt < TILT_DOWN_THRESHOLD) {
       nextCard('correct');
-    } else if (beta > TILT_UP_THRESHOLD) {
+    } else if (tilt > TILT_UP_THRESHOLD) {
       nextCard('pass');
     }
   }
