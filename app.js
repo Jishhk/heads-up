@@ -1,5 +1,5 @@
 (() => {
-  const APP_VERSION = 'v10';
+  const APP_VERSION = 'v11';
   const ROUND_SECONDS = 60;
   const DELTA_TRIGGER = 7.0;  // m/s^2 — widened above the measured resting noise floor (~stdev 2.6)
   const DELTA_NEUTRAL = 3.0;  // m/s^2 — must return within this band before re-arming
@@ -382,11 +382,38 @@
     mq.addEventListener('change', handler);
   }
 
-  function unlockOrientation() {
-    if (orientationWasLocked && screen.orientation && typeof screen.orientation.unlock === 'function') {
-      try { screen.orientation.unlock(); } catch (e) { /* ignore */ }
-    }
+  // Explicitly locks back to portrait once a round ends, rather than just
+  // unlocking and hoping the player remembers to physically rotate the
+  // phone back (and that Android auto-rotate is even on). Falls back to a
+  // plain unlock if portrait-lock itself isn't supported or hangs — same
+  // hang-prone lock() API as landscape, so it gets the same timeout guard.
+  function lockPortraitAfterRound() {
+    const orientation = screen.orientation;
     orientationWasLocked = false;
+    if (!orientation || typeof orientation.lock !== 'function') {
+      logEvent('orientationLock', 'portrait lock unsupported');
+      return;
+    }
+    let settled = false;
+    const timeout = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      logEvent('orientationLock', 'portrait lock timed out — falling back to unlock');
+      try { orientation.unlock && orientation.unlock(); } catch (e) { /* ignore */ }
+    }, 2500);
+
+    orientation.lock('portrait').then(() => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      logEvent('orientationLock', 'portrait lock succeeded');
+    }).catch((err) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      logEvent('orientationLock', 'portrait lock failed: ' + (err && err.message ? err.message : String(err)));
+      try { orientation.unlock && orientation.unlock(); } catch (e) { /* ignore */ }
+    });
   }
 
   // ---------- COUNTDOWN ----------
@@ -679,7 +706,7 @@
     logEvent('endRound');
     clearInterval(timerInterval);
     detachMotionListener();
-    unlockOrientation();
+    lockPortraitAfterRound();
     releaseWakeLock();
     try {
       renderResults();
