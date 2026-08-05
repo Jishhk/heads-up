@@ -1,5 +1,5 @@
 (() => {
-  const APP_VERSION = 'v8';
+  const APP_VERSION = 'v9';
   const ROUND_SECONDS = 60;
   const DELTA_TRIGGER = 7.0;  // m/s^2 — widened above the measured resting noise floor (~stdev 2.6)
   const DELTA_NEUTRAL = 3.0;  // m/s^2 — must return within this band before re-arming
@@ -34,8 +34,9 @@
     logEvent('showScreen', id);
     Object.values(screens).forEach(s => s.classList.remove('active'));
     screens[id].classList.add('active');
-    if (id === 'screen-home' && typeof renderCategoryGrid === 'function') {
-      renderCategoryGrid();
+    if (id === 'screen-home') {
+      startTapped = false;
+      if (typeof renderCategoryGrid === 'function') renderCategoryGrid();
     }
   }
 
@@ -156,14 +157,15 @@
   }
 
   function selectCategory(cat) {
-    startTapped = false;
     currentCategory = cat;
     document.getElementById('ready-category-label').textContent = cat.name;
     document.documentElement.style.setProperty('--accent', cat.accent);
     showScreen('screen-ready');
   }
 
-  document.getElementById('btn-back-from-permission').addEventListener('click', () => showScreen('screen-home'));
+  document.getElementById('btn-back-from-permission').addEventListener('click', () => {
+    showScreen('screen-home');
+  });
 
   document.getElementById('btn-reset-progress').addEventListener('click', () => {
     if (confirm('Clear no-repeat word tracking and correct-count badges for every category?')) {
@@ -186,7 +188,7 @@
   let startTapped = false;
 
   document.getElementById('btn-start-round').addEventListener('click', () => {
-    if (startTapped) return; // the log showed a double-tap can fire two overlapping lock attempts
+    if (startTapped) return; // guards against a rapid double-tap firing two overlapping lock attempts
     startTapped = true;
     ensureAudioContext(); // must be unlocked from a direct user gesture
 
@@ -202,9 +204,8 @@
     }
 
     // Safety net: if fullscreen/orientation-lock never settles for some
-    // reason, don't leave the player stuck staring at the Start button —
-    // this is what previously required an unrelated tap (like exiting
-    // fullscreen) to un-stick.
+    // reason, don't leave the player stuck — this is what previously
+    // required an unrelated tap (like exiting fullscreen) to un-stick.
     const stuckTimeout = setTimeout(() => {
       logEvent('startSequence', 'timed out — forcing fallback');
       proceedOnce();
@@ -217,7 +218,6 @@
   });
 
   document.getElementById('btn-back-from-ready').addEventListener('click', () => {
-    startTapped = false;
     showScreen('screen-home');
   });
 
@@ -390,7 +390,7 @@
   // ---------- COUNTDOWN ----------
   function beginCountdown() {
     showScreen('screen-countdown');
-    let n = 3;
+    let n = 5;
     const el = document.getElementById('countdown-number');
     el.textContent = n;
     const iv = setInterval(() => {
