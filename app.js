@@ -1,8 +1,9 @@
 (() => {
-  const APP_VERSION = 'v7';
+  const APP_VERSION = 'v8';
   const ROUND_SECONDS = 60;
-  const DELTA_TRIGGER = 5.0;  // m/s^2 change from baseline to trigger — derived from real device data
-  const DELTA_NEUTRAL = 2.5;  // m/s^2 — must return within this band before re-arming
+  const DELTA_TRIGGER = 7.0;  // m/s^2 — widened above the measured resting noise floor (~stdev 2.6)
+  const DELTA_NEUTRAL = 3.0;  // m/s^2 — must return within this band before re-arming
+  const CALIBRATION_WINDOW_MS = 400; // average samples over this window instead of trusting one noisy reading
   const MIN_TRIGGER_INTERVAL_MS = 500; // debounce — real data showed follow-through/rebound firing a second flip within ~100-200ms
   const SESSION_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours
   const SESSION_KEY = 'headsup_session_v1';
@@ -328,11 +329,32 @@
   function lockLandscapeThenProceed() {
     const orientation = screen.orientation;
     if (orientation && typeof orientation.lock === 'function') {
+      let settled = false;
+
+      // screen.orientation.lock() has been observed to hang indefinitely
+      // (neither resolving nor rejecting) on some Android Chrome builds,
+      // particularly right after entering fullscreen. Without this timeout
+      // that leaves the player stuck with no fallback ever firing — this
+      // is what previously required exiting fullscreen manually to un-stick
+      // (which likely invalidated the pending lock request as a side effect).
+      const lockTimeout = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        logEvent('orientationLock', 'timed out — falling back to manual rotation');
+        waitForManualLandscapeRotation();
+      }, 2500);
+
       orientation.lock('landscape').then(() => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(lockTimeout);
         orientationWasLocked = true;
         logEvent('orientationLock', 'succeeded');
         beginCountdown();
       }).catch((err) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(lockTimeout);
         logEvent('orientationLock', 'failed: ' + (err && err.message ? err.message : String(err)));
         waitForManualLandscapeRotation();
       });
@@ -502,6 +524,8 @@
   let baselineAz = null;
   let motionLogStartTime = null;
   let lastTriggerTime = -Infinity;
+  let calibrationSamples = [];
+  let calibrationStartTime = null;
 
   function attachMotionListener() {
     if (orientationHandlerAttached) return;
@@ -511,6 +535,8 @@
     baselineAz = null;
     motionLogStartTime = performance.now();
     lastTriggerTime = -Infinity;
+    calibrationSamples = [];
+    calibrationStartTime = null;
     window.addEventListener('devicemotion', onMotion);
     orientationHandlerAttached = true;
   }
@@ -542,10 +568,19 @@
     if (!calibrated) {
       baselineAx = g.x;
       baselineAy = g.y;
-      baselineAz = az;
-      calibrated = true;
-      armed = true;
-      note = 'calibrated';
+      // A single sample here was proven noisy by real data (resting reads
+      // drifted ~1.5-4 m/s^2 off from one snapshot, skewing correct/pass
+      // odds). Average over a short window instead of trusting one sample.
+      if (calibrationStartTime === null) calibrationStartTime = performance.now();
+      calibrationSamples.push(az);
+      if (performance.now() - calibrationStartTime >= CALIBRATION_WINDOW_MS) {
+        baselineAz = calibrationSamples.reduce((a, b) => a + b, 0) / calibrationSamples.length;
+        calibrated = true;
+        armed = true;
+        note = 'calibrated';
+      } else {
+        note = 'calibrating';
+      }
     } else {
       delta = az - baselineAz;
       const now = performance.now();
