@@ -1,5 +1,5 @@
 (() => {
-  const APP_VERSION = 'v9';
+  const APP_VERSION = 'v10';
   const ROUND_SECONDS = 60;
   const DELTA_TRIGGER = 7.0;  // m/s^2 — widened above the measured resting noise floor (~stdev 2.6)
   const DELTA_NEUTRAL = 3.0;  // m/s^2 — must return within this band before re-arming
@@ -21,6 +21,7 @@
   let motionLog = [];
 
   function logEvent(name, data) {
+    if (!debugEnabled) return;
     eventLog.push({ t: Math.round(performance.now()), name, data: data === undefined ? null : data });
     if (eventLog.length > 500) eventLog.shift();
   }
@@ -176,7 +177,7 @@
   const debugToggleBtn = document.getElementById('btn-debug-toggle');
   debugToggleBtn.addEventListener('click', () => {
     debugEnabled = !debugEnabled;
-    debugToggleBtn.textContent = 'Debug Tilt: ' + (debugEnabled ? 'On' : 'Off');
+    debugToggleBtn.textContent = 'Diagnostics: ' + (debugEnabled ? 'On' : 'Off');
   });
 
   // ---------- PERMISSION HANDLING (iOS-safe, no-op on Android) ----------
@@ -191,6 +192,7 @@
     if (startTapped) return; // guards against a rapid double-tap firing two overlapping lock attempts
     startTapped = true;
     ensureAudioContext(); // must be unlocked from a direct user gesture
+    showScreen('screen-countdown'); // hide the ready screen right away — fullscreen/lock below can take a few seconds
 
     let resolved = false;
     function proceedOnce() {
@@ -414,6 +416,37 @@
     return arr;
   }
 
+  // ---------- WAKE LOCK (keep screen on during a round) ----------
+  // Tilts and occasional taps don't reliably count as "activity" to
+  // Android's screen-off timer, so without this the screen can dim/lock
+  // mid-round. Wake locks are automatically released when the tab loses
+  // visibility, so it's re-requested on visibilitychange if a round is
+  // still active when the tab regains focus.
+  let wakeLock = null;
+
+  async function requestWakeLock() {
+    if (!('wakeLock' in navigator)) return;
+    try {
+      wakeLock = await navigator.wakeLock.request('screen');
+      logEvent('wakeLock', 'acquired');
+    } catch (err) {
+      logEvent('wakeLock', 'failed: ' + (err && err.message ? err.message : String(err)));
+    }
+  }
+
+  function releaseWakeLock() {
+    if (wakeLock) {
+      wakeLock.release().catch(() => {});
+      wakeLock = null;
+    }
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && roundActive && !wakeLock) {
+      requestWakeLock();
+    }
+  });
+
   function startRound() {
     logEvent('startRound', currentCategory ? currentCategory.id : null);
     roundActive = true;
@@ -423,6 +456,7 @@
     armed = true;
     roundLog = [];
     motionLog = [];
+    requestWakeLock();
 
     const gameScreen = document.getElementById('screen-game');
     gameScreen.style.background = shade(currentCategory.accent, -85);
@@ -605,7 +639,7 @@
       }
     }
 
-    if (motionLog.length < 5000) {
+    if (debugEnabled && motionLog.length < 5000) {
       motionLog.push({
         t: Math.round(performance.now() - motionLogStartTime),
         gx: round3(g.x), gy: round3(g.y), gz: round3(g.z),
@@ -646,6 +680,7 @@
     clearInterval(timerInterval);
     detachMotionListener();
     unlockOrientation();
+    releaseWakeLock();
     try {
       renderResults();
     } catch (err) {
@@ -656,6 +691,8 @@
   }
 
   function renderResults() {
+    document.getElementById('btn-download-diagnostics').style.display = debugEnabled ? '' : 'none';
+
     const correctCount = roundLog.filter(r => r.result === 'correct').length;
     const totalCount = roundLog.length;
     document.getElementById('over-score-label').textContent =
